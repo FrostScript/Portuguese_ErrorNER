@@ -185,11 +185,14 @@ def bootstrap_ci(rows: list[dict], thr: float, n_iter: int = 1000, seed: int = 1
 # ---------------------------------------------------------------- 报告
 def to_markdown(res: dict) -> str:
     best = res["best"]
+    sweep_best = res.get("sweep_best") or {"threshold": best["threshold"], "f1": best["f1"]}
     lines = [
-        f"# {res['split']} 评测报告 — {res['model']}",
+        f"# {res['split']} 评测报告 — {res.get('arm', '')} / {res['model']}",
         "",
-        f"- 句子数：{res['n_sentences']}，文档数：{res['n_documents']}",
-        f"- 最优阈值：**{best['threshold']}**（Micro-F1 = {best['f1']:.4f}）",
+        f"- 阈值模式：**{res.get('mode', '扫描最优')}**",
+        f"- 句子数：{res['n_sentences']}，文档数：{res['n_documents']}，gold 实体 {res.get('gold_entities', '?')}，预测实体 {res.get('pred_entities', '?')}",
+        f"- 本次采用阈值：**{best['threshold']:.2f}**（Micro-F1 = {best['f1']:.4f}）",
+        f"- 扫描最优参考：{sweep_best['threshold']:.2f}（Micro-F1 = {sweep_best['f1']:.4f}）",
         f"- 95% CI（按文档 bootstrap，{res['ci']['iterations']} 次）：[{res['ci']['ci_low']:.4f}, {res['ci']['ci_high']:.4f}]",
         "",
         "## 主表",
@@ -237,6 +240,11 @@ def main() -> int:
     ap.add_argument("--split", default="dev")
     ap.add_argument("--cache", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--threshold", type=float, default=None,
+                    help="固定阈值（项目统一 0.80）。给了就按该阈值出最终数字，扫描表仅作参考")
+    ap.add_argument("--arm", default="E0", help="实验组标识，写入台账")
+    ap.add_argument("--seed", default="", help="训练随机种子（E0 留空）")
+    ap.add_argument("--record", default=None, help="把最终指标追加到该 CSV（默认 results/experiments.csv）")
     args = ap.parse_args()
 
     model_dir = Path(args.model)
@@ -254,8 +262,18 @@ def main() -> int:
 
     print(f"[评测] 阈值扫描 {len(THRESHOLDS)} 档")
     sweep_rows = sweep(rows)
-    best = max(sweep_rows, key=lambda r: r["f1"])
-    print(f"       最优阈值 {best['threshold']} → Micro-F1 {best['f1']:.4f}")
+    sweep_best = max(sweep_rows, key=lambda r: r["f1"])
+
+    if args.threshold is None:
+        best = sweep_best
+        mode = "扫描最优"
+    else:
+        matched = [r for r in sweep_rows if abs(r["threshold"] - args.threshold) < 1e-9]
+        best = matched[0] if matched else None
+        if best is None:
+            raise SystemExit(f"阈值 {args.threshold} 不在网格内，可选：{THRESHOLDS}")
+        mode = f"固定 {args.threshold:.2f}"
+    print(f"       {mode} → Micro-F1 {best['f1']:.4f}（扫描最优为 {sweep_best['threshold']} / {sweep_best['f1']:.4f}）")
 
     print("[评测] 错误分类")
     errors = error_breakdown(rows, best["threshold"])
@@ -263,12 +281,20 @@ def main() -> int:
     print("[评测] bootstrap CI（1000 次，按文档重采样）")
     ci = bootstrap_ci(rows, best["threshold"])
 
+    gold_total = sum(len(r["gold"]) for r in rows)
+    pred_total = sum(len(preds_at(r["cands"], best["threshold"])) for r in rows)
+
     res = {
         "model": model_dir.name,
         "split": args.split,
+        "arm": args.arm,
+        "mode": mode,
         "n_sentences": len(rows),
         "n_documents": len({r["doc_id"] for r in rows}),
+        "gold_entities": gold_total,
+        "pred_entities": pred_total,
         "sweep": sweep_rows,
+        "sweep_best": {"threshold": sweep_best["threshold"], "f1": sweep_best["f1"]},
         "best": best,
         "errors": errors,
         "ci": ci,
@@ -279,6 +305,49 @@ def main() -> int:
     (out_prefix.with_suffix(".md")).write_text(to_markdown(res), encoding="utf-8")
     print(f"[输出] {out_prefix.with_suffix('.json')}")
     print(f"[输出] {out_prefix.with_suffix('.md')}")
+
+    if args.record is not None:
+        sys.path.insert(0, str(WORKSPACE))
+        from src.eval.record import append_row
+
+        per_class = best["per_class"]
+
+        def f1_of(cls: str) -> float:
+            d = per_class[cls]
+            p = d["tp"] / (d["tp"] + d["fp"]) if d["tp"] + d["fp"] else 0.0
+            r = d["tp"] / (d["tp"] + d["fn"]) if d["tp"] + d["fn"] else 0.0
+            return 2 * p * r / (p + r) if p + r else 0.0
+
+        path = append_row(
+            {
+                "arm": args.arm,
+                "split": args.split,
+                "checkpoint": str(model_dir),
+                "seed": args.seed,
+                "threshold": best["threshold"],
+                "precision": best["precision"],
+                "recall": best["recall"],
+                "micro_f1": best["f1"],
+                "macro_f1": best["macro_f1"],
+                "per_f1": f1_of("PER"),
+                "org_f1": f1_of("ORG"),
+                "loc_f1": f1_of("LOC"),
+                "tp": best["tp"],
+                "fp": best["fp"],
+                "fn": best["fn"],
+                "type_error": errors["type_error"],
+                "boundary_error": errors["boundary_error"],
+                "ci_low": ci["ci_low"],
+                "ci_high": ci["ci_high"],
+                "gold_entities": gold_total,
+                "pred_entities": pred_total,
+                "sentences": len(rows),
+                "documents": len({r["doc_id"] for r in rows}),
+                "notes": f"mode={mode}; sweep_best={sweep_best['threshold']}@{sweep_best['f1']:.4f}",
+            },
+            args.record,
+        )
+        print(f"[台账] 已追加一行到 {path}")
     return 0
 
 

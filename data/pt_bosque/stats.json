@@ -2,7 +2,7 @@
   "source": "UniversalNER/UNER_Portuguese-Bosque@master",
   "splits": {
     "train": {
-      "documents": 235,
+      "documents": 234,
       "sentences": 7018,
       "entities": 8101,
       "tokens": 171776,
@@ -19,7 +19,7 @@
       "offset_fallbacks": 0
     },
     "dev": {
-      "documents": 41,
+      "documents": 40,
       "sentences": 1172,
       "entities": 1401,
       "tokens": 28447,
@@ -36,7 +36,7 @@
       "offset_fallbacks": 0
     },
     "test": {
-      "documents": 40,
+      "documents": 39,
       "sentences": 1167,
       "entities": 1215,
       "tokens": 27604,
@@ -63,8 +63,8 @@
     "train&dev": {
       "exact_duplicate_sentences": 2,
       "sample": [
-        "Moustafa El-Guindy, 51, professor-titular de a Unicamp:",
-        "The Washington Post"
+        "The Washington Post",
+        "Moustafa El-Guindy, 51, professor-titular de a Unicamp:"
       ]
     },
     "dev&test": {

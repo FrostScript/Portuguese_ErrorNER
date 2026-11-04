@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>实验看板 · Portuguese ErrorNER</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>实验看板 <span class="sub">Portuguese_ErrorNER · E0–E3</span></h1>
+  <div class="meta">
+    <span id="clock">--:--:--</span>
+    <span id="status" class="badge idle">空闲</span>
+    <button id="refresh">立即刷新</button>
+  </div>
+</header>
+
+<main>
+  <section class="card span2">
+    <h2>运行状态</h2>
+    <div id="running-box" class="running-box">当前没有运行中的任务</div>
+  </section>
+
+  <section class="card">
+    <h2>实验台账 <small>results/experiments.csv</small></h2>
+    <div class="table-wrap"><table id="exp-table">
+      <thead><tr>
+        <th>arm</th><th>split</th><th>seed</th><th>阈值</th>
+        <th>P</th><th>R</th><th>Micro-F1</th><th>Macro</th>
+        <th>PER</th><th>ORG</th><th>LOC</th><th>CI</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+
+  <section class="card">
+    <h2>运行记录 <small>docs/runs/</small></h2>
+    <ul id="doc-list" class="list"></ul>
+  </section>
+
+  <section class="card span2">
+    <h2>实时日志
+      <select id="log-select"></select>
+      <label class="follow"><input type="checkbox" id="follow" checked> 自动滚到底</label>
+    </h2>
+    <pre id="log-view" class="log">选择一个日志文件…</pre>
+  </section>
+
+  <section class="card span2">
+    <h2>Checkpoint <small>D:\pt_ner_work\checkpoints</small></h2>
+    <div class="table-wrap"><table id="ckpt-table">
+      <thead><tr>
+        <th>路径</th><th>arm</th><th>seed</th><th>步数</th><th>batch</th><th>lr</th>
+        <th>耗时(s)</th><th>大小(MB)</th><th>最近 loss</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </section>
+</main>
+
+<footer>
+  <span id="foot">未连接</span>
+  <span>只读本地文件，不改动实验代码</span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

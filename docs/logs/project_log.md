@@ -276,3 +276,193 @@ Get-ChildItem D:\pt_ner_work\tmp          # torch 缓存落在这里
 1. 工作区出现 `.idea/`（IDE 目录），未处理；`.gitignore`（D17）应一并忽略。
 2. 受限模式下仍无法删除部分目录（本次 7 个 tmp 全部需完整权限），影响后续清理操作。
 3. `docs/runs/` 目前只有 E0 一份；后续每次实验必须同步补记录（D20）。
+
+## 任务 9 — 2026-11-04 git 首次提交 + 阈值统一 0.80 + 成果目录 + E1 数据与代码
+
+### 做了什么
+1. 建 `.gitignore`（排除 models/、data/raw_uner/、.idea/、tmp*/、torchinductor_*/、checkpoints/），完成首次提交 `0312645`（32 文件，13,199 行插入）。
+2. 阈值统一为 **0.80**：改 `evaluate.py` 支持 `--threshold / --arm / --record`，E0 在 0.80 上重算并写入台账。
+3. 新建 `results/` 成果目录：`README.md`（阈值约定与台账说明）、`E0_zeroshot_dev.md`（成果）、`experiments.csv`（总台账）。
+4. 新增 `src/eval/record.py`：统一往 `results/experiments.csv` 追加行（27 个字段）。
+5. 按 C1 决策产出 E1 训练集：`src/data/make_real_300.py` → `data/curated/real_300.jsonl` + manifest + stats。
+6. 新增 `src/data/to_gliner.py`（字符区间→词级区间通用转换）、`src/train/train_arm.py`（E1–E3 通用微调入口，**未运行**）。
+
+### 关键数据
+- E0 @ 0.80（修正后）：Micro-F1 **0.7497**，P 0.7680 / R 0.7323，Macro 0.7354，CI **[0.7148, 0.7814]**，TP/FP/FN = 1026/310/375。分类别：PER 0.8360 / LOC 0.7141 / ORG 0.6561。
+- **修复 bug：doc_id 传递。** 原 `prepare_uner.py` 只在每文档首句写入 `newdoc id`，其余 1,132/1,172 条 dev 句子的 doc_id 为空串，导致按文档 bootstrap 实际只重采样了 2 类（空串大桶 + 40 个单句桶），把 CI 严重拉宽（初版 [0.5679, 0.7952]）。修复后按文档正确分组：train 234 / dev 40 / test 39 篇，每篇 ≤30 句，中位数 30。点估计不变（同一批预测），CI 收窄为 [0.7148, 0.7814]。
+- 修复方式：改 `parse_iob2` 向前传递文档 ID → 重跑转换 → 用 `id → doc_id` 映射**就地修补候选缓存**（不重新推理）。
+- E1 训练集 `real_300.jsonl`：300 句 / 167 文档 / 376 实体（PER 134、ORG 113、LOC 129）/ 7,861 token；135 无实体（45%）+ 165 含实体；含实体句均值 2.28；种子 42；去重剔除内部 11 条、跨集 3 条。
+- 阈值曲线的平坦性：0.75/0.80/0.85 = 0.7442/0.7497/0.7427，极差 0.7 点，说明 0.80 不是尖峰。
+- 用户新规则：**未收到「开始实验」指令不得运行任何训练/评测实验**，已写入 TODO 头部执行纪律。
+
+### 变更文件
+- 新建：`.gitignore`、`src/data/to_gliner.py`、`src/data/make_real_300.py`、`src/train/train_arm.py`、`src/eval/record.py`、`results/README.md`、`results/E0_zeroshot_dev.md`、`results/experiments.csv`、`data/curated/real_300.jsonl`、`real_300_manifest.json`、`real_300_stats.md`
+- 修改：`src/data/prepare_uner.py`（doc_id 向前传递）、`src/eval/evaluate.py`（--threshold/--arm/--record、报告头、doc 计数修正）
+- 修改：`docs/specs/02`（E1 抽样已定）、`docs/specs/05`（目标改为对齐 E1 实测 376 实体 / 1.2533）、`docs/specs/07`（阈值统一 0.80）、`docs/TODO.md`（A1 部分完成、A1-b、C1 完成、执行纪律、D6-b/D7-b）
+- 重新生成：`data/pt_bosque/{train,dev,test}.jsonl`、`stats.json`（doc_id 修复）
+- git：首次提交 `0312645`
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+git log --oneline -1
+Import-Csv results\experiments.csv | Format-Table arm,split,threshold,micro_f1,org_f1,ci_low,ci_high
+(Get-Content data\curated\real_300.jsonl).Count            # 300
+Select-String -Path data\curated\real_300_stats.md -Pattern "135|376"
+```
+
+### 遗留问题
+1. `experiments.csv` 的 `no_entity_ratio` 列目前为空（评测时未统计），待 D7-b 补。
+2. dev 二次切分（872/300）仍未做，A1 未完全关闭；B3 的重跑要等它。
+3. E1 训练代码 `src/train/train_arm.py` 已写好但**按要求未运行**，等「开始实验」指令。
+4. 首次提交后新增的文件（本轮）尚未提交，工作区为脏。
+
+## 任务 10 — 2026-11-04 排查"每次都要批准"的问题
+
+### 做了什么
+用户要求把 `D:\pt_ner_work` 加成工作区以省去反复授权。检查 DSH 的工作区模型并实测沙箱写权限边界。
+
+### 关键数据
+- DSH 的工作区是"一个会话 = 一个目录"：`~/.dsh/storages/workspace.json` 只有 workspaces 路径表（3 个工作区），**没有"额外可写根"或"多根工作区"配置项**；profile 层 `cordis.patch.yml` 也只配插件，与沙箱路径无关。
+- **实测受限模式（workspace-write）写入边界：**
+  | 路径 | 结果 |
+  |---|---|
+  | `D:\` 根、`D:\pt_ner_work\checkpoints`、`D:\pt_ner_work\results`、新建 `D:\pt_ner_work\_probe_dir` | 全部**成功**，无需批准 |
+  | `C:\Users\liush\Desktop\`、`Documents\`、`AppData\Local\` | 全部**被拒** |
+  | 工作区内 | 成功 |
+- 结论：**D 盘本来就免批准**。此前的多次批准请求是我主动传了 `danger-full-access` 造成的过度提升，不是沙箱拒绝。
+- 附带验证：在受限模式下通过 junction 写 D 盘同样成功；junction 已用 `rmdir` 删除（只删链接），`D:\pt_ner_work` 24 个文件完好。
+
+### 变更文件
+- 修改 `docs/specs/08-reproducibility-and-env.md`：新增 §6.1「磁盘写权限实测」表与"不要预先提升"的结论
+- 修改 `docs/TODO.md`：环境事实表加"磁盘写权限"一行
+- 创建后删除：工作区 `_dwork` junction（临时验证用）
+
+### 验证方式
+```powershell
+# 受限模式下应成功
+"ok" | Set-Content D:\pt_ner_work\results\_probe.txt; Remove-Item D:\pt_ner_work\results\_probe.txt
+# 工作区外 C 盘应被拒
+"x" | Set-Content C:\Users\liush\Desktop\_probe.txt
+```
+
+### 遗留问题
+1. 若确实想要"零批准"（含 C 盘任意位置），只能把会话切到「完全权限」，这是 UI 设置，我无法代改。
+2. 若希望所有产物都落在同一棵目录树里便于打包/备份，可考虑整体迁到 `D:\pt_ner_work\Portuguese_ErrorNER` 并把工作区切到那里（需在 GUI 重新添加工作区）。
+
+## 任务 11 — 2026-11-04 关闭 A1：取消 dev 二次切分 + 文档清单落盘
+
+### 做了什么
+1. 按决策取消 dev 的 872/300 二次切分（理由见下），完整 dev 兼作 checkpoint 选择与指标报告。
+2. 新增 `src/data/make_split_manifest.py`，落盘三集文档级清单与泄漏审计。
+3. 顺带修掉一个会误报泄漏的命名 bug：三个 split 的文档编号各自从 `batch-0000` 起，跨集必然重名。
+
+### 关键数据
+- **取消二次切分的原因**：Dev Feedback（300 句）只服务于已删除的 Error-Aware（算类别 Recall）；Dev Selection 的"搜阈值"用途也因阈值统一 0.80 而消失；剩下的"选 checkpoint"用完整 dev 即可。继续切会把报告集从 1,172 句压到 300 句，CI 宽度由 0.067 扩到约 0.13，白丢统计功效。
+- **文档 ID 命名空间**：`prepare_uner.py` 给 doc_id 加 split 前缀（`dev:batch-0000`），否则跨集审计全部误判为交叠。
+- **审计结果**：文档级交叠 train&dev = 0、train&test = 0、dev&test = 0；句级完全重复全库 14 条（train 内部 11 + 跨集 3），均已排除在 E1 训练集外；dev/test 内部重复为 0。
+- 三集规模：train 234 篇 / 7,018 句 / 8,101 实体；dev 40 篇 / 1,172 句 / 1,401 实体；test 39 篇 / 1,167 句 / 1,215 实体。
+- 重跑验证：E0 @0.80 仍为 Micro-F1 0.7497（重命名 doc_id 不改变分组，CI 仍 [0.7148, 0.7814]）；real_300 重抽结果完全一致（376 实体 / 167 文档 / 45% 无实体）。
+- G1 闸门：每类 mention ≥ 30 ✅、跨集文档交叠 0 ✅、训练集重复句 0 ✅ —— **G1 通过，A1 关闭**。
+
+### 变更文件
+- 新建：`src/data/make_split_manifest.py`、`data/pt_bosque/split_manifest.json`、`data/pt_bosque/split_manifest.md`
+- 修改：`src/data/prepare_uner.py`（doc_id 加 split 前缀）
+- 修改：`docs/specs/02-split-and-leakage.md`（§2 改为"已取消"并写清理由与披露要求）
+- 修改：`docs/TODO.md`（A1 全部勾选并写明 G1 结果）
+- 重新生成：`data/pt_bosque/{train,dev,test}.jsonl`、`stats.json`、`data/curated/real_300.*`
+- 修补：`D:\pt_ner_work\results\e0_dev_candidates.jsonl` 的 doc_id（1,172 条，不重新推理）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+Select-String -Path data\pt_bosque\split_manifest.md -Pattern "交叠|0\*\*"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" src\data\make_split_manifest.py
+```
+
+### 遗留问题
+1. 句级重复句仍留在官方 `train.jsonl` 里（14 条），只是被排除在 E1 训练集外；若以后要用全量 train 训练，需要先做清洗。
+2. dev 兼作模型选择与报告，limitation 里必须披露（已写入 specs/02）。
+3. E1 训练代码仍未运行，等「开始实验」。
+
+## 任务 12 — 2026-11-04 实验看板（不改实验代码）
+
+### 做了什么
+用户反馈"跑的时候看不到代码输出"。原因是两层：一是我的命令都套了 `Select-Object -Last N` 只回传尾部，二是 tqdm/警告走 stderr，命令结束即丢。按要求做了一个本地只读看板，**实验脚本一行未改**。
+
+- `tools/dashboard/server.py`：标准库 HTTP 服务，绑 `127.0.0.1:8765`，接口 `/api/state`、`/api/log`、`/api/progress`、`/api/doc`，路径白名单限制在 `logs/`、`results/`、`docs/runs/`、`D:\pt_ner_work\`。
+- `tools/dashboard/static/`：单页看板，2 秒轮询状态、1.5 秒追日志；五个区块（运行状态 / 实验台账 / 运行记录 / 实时日志 / checkpoint）。
+- `scripts/run.ps1`：运行包装器，把 stdout+stderr tee 到 `logs/<时间戳>_<名字>.log` 并登记 `logs/runs.jsonl`。
+- `.gitignore` 增加 `logs/`。
+
+### 关键数据
+- 地址：**http://127.0.0.1:8765/**，自检 HTTP 200，`/api/state` 能读到 1 行实验台账、运行记录与 checkpoint 列表。
+- 端到端验证：跑一个 4 行渐进输出的假任务，日志实时写入，看板接口读回的文本干净（`tick 0..3`），`runs.jsonl` 记录 start/done 两条同 id 记录并被去重。
+- **踩到三个环境坑，都已写进 `tools/dashboard/README.md`：**
+  1. 沙箱是 Windows PowerShell 5.1，**`pwsh` 不在 PATH**；
+  2. ConstrainedLanguage **禁止执行 .ps1 与 `[scriptblock]::Create`**（`DotSourceNotSupported`），所以包装器只能在用户自己的终端用，会话内必须内联 tee；
+  3. **编码不能混**：`Tee-Object` 写 UTF-16LE+BOM，`Out-File -Encoding utf8` 写 UTF-8+BOM，混在同一文件里会变成 `t i c k` 这种夹空字节的乱码 → 日志头也必须用 Tee 写；服务端按 BOM 自动识别。
+
+### 变更文件
+- 新建：`tools/dashboard/server.py`、`tools/dashboard/static/{index.html,app.js,style.css}`、`tools/dashboard/README.md`、`scripts/run.ps1`
+- 修改：`.gitignore`（`logs/`）
+- 修改：`docs/logs/project_log.md`（本节）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+Invoke-WebRequest http://127.0.0.1:8765/ -UseBasicParsing | Select-Object StatusCode
+Invoke-RestMethod http://127.0.0.1:8765/api/state | Select-Object now
+# 浏览器打开 http://127.0.0.1:8765/
+```
+
+### 遗留问题
+1. 看板服务作为托管后台任务运行（job id `pwsh-0f87fbce1b5b4b7d`），会话结束即停；重启命令见 README。
+2. 训练脚本没有 `progress.jsonl`（要求不改实验代码），所以"跑到第几步"目前靠解析日志里的 HF Trainer 输出来看；若以后允许加一行写透，实时性更好。
+3. `scripts/run.ps1` 在沙箱内不可执行，会话里只能用内联写法；两者行为等价。
+
+## 任务 13 — 2026-11-04 跑通首个 E1（seed 13）
+
+### 做了什么
+1. 按协议训练 E1：`real_300.jsonl` → GLiNER 微调 300 步（seed 13）。
+2. 在完整 dev 上按统一阈值 0.80 评测，写入台账 `results/experiments.csv`。
+3. 写运行记录 `docs/runs/2026-11-04_E1_seed13_dev.md`。
+
+### 关键数据
+- **训练**：4.2 s 加载 + **81.6 s 训练 300 步**（3.69 步/秒，2 epoch），loss 2.519 收尾，checkpoint 约 1.16 GB。
+- **结果（阈值 0.80，完整 dev 1,172 句）**：
+
+  | 指标 | E0 | E1 seed13 | 变化 |
+  |---|---:|---:|---:|
+  | Precision | 0.7680 | 0.7686 | +0.001 |
+  | Recall | 0.7323 | 0.9079 | **+0.176** |
+  | Micro-F1 | 0.7497 | **0.8325** | **+0.083** |
+  | Macro-F1 | 0.7354 | 0.8250 | +0.090 |
+  | CI | [0.7148,0.7814] | [0.8044,0.8568] | 不重叠 |
+
+- 分类别 F1：PER 0.8360→0.9125、ORG 0.6561→0.7361、LOC 0.7141→0.8264。
+- 错误结构：Type 56、Boundary 29、其余 FP 298、其余 FN 44。
+- **固定阈值的代价实测**：扫描最优在 0.90（0.8448），固定 0.80 是 0.8325，即让出 1.2 点——印证 specs/07 §2 的预判，需在报告中披露。
+- **环境坑**：受限沙箱下训练报 `PermissionError [WinError 5]`（multiprocessing.Queue 建命名管道），必须用完整权限；评测在受限模式可跑。
+- 性能修正：先前按冒烟 2 步 49.5 s 外推"300 步约 2 小时"完全错误，实测 81.6 s。3 个种子总计约 4 分钟，A4 的 pilot 成本也随之变得极低。
+
+### 变更文件
+- 新增：`docs/runs/2026-11-04_E1_seed13_dev.md`
+- 修改：`docs/TODO.md`（A5 记录 seed 13 完成）
+- 修改：`results/experiments.csv`（追加 E1 行）
+- 产物：`D:\pt_ner_work\checkpoints\E1\seed13\`（final + train_config.json）、`D:\pt_ner_work\results\e1_s13_dev.{md,json}`、候选缓存
+- 日志：`logs/20261104_115626_train_E1_seed13.log`、`logs/*_eval_E1_seed13.log`
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+Import-Csv results\experiments.csv | Format-Table arm,seed,threshold,micro_f1,org_f1,ci_low,ci_high
+Get-Content D:\pt_ner_work\results\e1_s13_dev.md -TotalCount 8
+```
+或打开看板 http://127.0.0.1:8765/ 看台账与 checkpoint。
+
+### 遗留问题
+1. E1 还差 seed 23 / 33（各约 82 s + 评测 25 s）。
+2. A4 的 pilot 定 S 仍未做；现在知道单次训练只要 80 秒，扫 4 个 S 值成本可忽略，建议尽快补齐。
+3. 固定 0.80 对微调组偏低 1.2 点，结论口径需要在报告中统一说明。

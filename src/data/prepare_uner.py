@@ -31,20 +31,24 @@ TAG_MAP = {"PER": "PER", "ORG": "ORG", "LOC": "LOC"}
 
 
 def parse_iob2(path: Path):
-    """产出 (meta, tokens, tags) 三元组。"""
+    """产出 (meta, tokens, tags) 三元组。
+
+    注意：`# newdoc id` 只出现在每个文档的第一句，后续句子没有该行，
+    因此这里把它**向前传递**到同一文档的所有句子，否则 doc_id 会大量为空，
+    导致按文档重采样（bootstrap）与文档级划分全部失真。
+    """
     meta: dict[str, str] = {}
     tokens: list[str] = []
     tags: list[str] = []
-
-    def flush():
-        if tokens:
-            yield dict(meta), list(tokens), list(tags)
+    current_doc: str = ""
 
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.rstrip("\n")
             if not line.strip():
                 if tokens:
+                    if "newdoc id" not in meta and current_doc:
+                        meta["newdoc id"] = current_doc
                     yield dict(meta), list(tokens), list(tags)
                     meta.clear()
                     tokens.clear()
@@ -54,7 +58,10 @@ def parse_iob2(path: Path):
                 body = line.lstrip("#").strip()
                 if " = " in body:
                     key, _, val = body.partition(" = ")
-                    meta[key.strip()] = val
+                    key = key.strip()
+                    meta[key] = val
+                    if key == "newdoc id":
+                        current_doc = val
                 continue
             cols = line.split("\t")
             if len(cols) < 3:
@@ -66,6 +73,8 @@ def parse_iob2(path: Path):
                 tag = "O"
             tags.append(tag)
     if tokens:
+        if "newdoc id" not in meta and current_doc:
+            meta["newdoc id"] = current_doc
         yield dict(meta), tokens, tags
 
 
@@ -142,6 +151,10 @@ def main() -> int:
                 n_empty += 1
 
             doc_id = meta.get("newdoc id") or meta.get("newdoc_id") or ""
+            # 文档 ID 在三个 split 里各自从 0 开始编号（batch-0000…），必须加命名空间，
+            # 否则跨集泄漏审计会误报为"全部文档交叠"
+            if doc_id:
+                doc_id = f"{split}:{doc_id}"
             docs.add(doc_id)
             records.append(
                 {

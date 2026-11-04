@@ -77,4 +77,17 @@ candidates, valid, failed, retries, tokens_used, cost_usd, no_entity_ratio
 | `CannotCreateTypeConstrainedLanguage` | `workspace-write` 下是 ConstrainedLanguage | 改用 cmdlet，不用 `[System.IO.*]::` 等 .NET 静态调用 |
 | `torch.jit.script is not supported in Python 3.14+` | Python 3.14 限制 | 仅 FutureWarning，实测不影响微调 |
 | tokenizer 的 `fix_mistral_regex` 提示 | DeBERTa SPM 分词器的误报 | 实测分词正常，忽略 |
-| 写工作区外路径被拒 | 沙箱限制 | 需要 `danger-full-access` 或改写到工作区内 |
+| 工作区根出现 `tmp*/`、`torchinductor_*/` | 受限下 `%TEMP%` 不可写，torch 落到 CWD | `src/common/env.py` 把 `TMPDIR/TEMP/TMP` 指向 `D:/pt_ner_work/tmp`，已解决 |
+| 写 C 盘工作区外被拒 | 沙箱只放行会话工作区 | 需要时切「完全权限」 |
+
+### 6.1 磁盘写权限实测（2026-11-04）
+
+| 路径 | 受限模式下可写 | 说明 |
+|---|---|---|
+| 工作区内（含 `data/`、`results/`） | ✅ | 默认放行 |
+| `D:\` 整盘（含 `D:\pt_ner_work\*`、`D:\` 根） | ✅ | **已实测 6 次写入全部成功，无需批准** |
+| `C:\Users\liush\Desktop\`、`Documents\`、`AppData\Local\` | ❌ | 被拒，需要批准或完全权限 |
+
+**结论：`D:\pt_ner_work` 不需要单独加成工作区**，受限模式下直接可写。此前多次用 `danger-full-access` 属于**过度提升**，不要再用——先按受限模式执行，真被拒了才升级。
+
+**不可行方案（已排除）：** DSH 是"一个会话 = 一个工作区目录"的模型（见 `~/.dsh/storages/workspace.json`，只有路径列表，没有"额外可写根"配置），无法把第二个盘加成同等工作区。用目录联接（junction）指向 D 盘也不必要——直接写就通。

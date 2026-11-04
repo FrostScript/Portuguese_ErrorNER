@@ -1,0 +1,114 @@
+:root {
+  --bg: #0f1115;
+  --card: #171a21;
+  --line: #262b36;
+  --fg: #e6e8ee;
+  --muted: #8b93a7;
+  --accent: #4f9cf9;
+  --ok: #35c07f;
+  --warn: #e0a53a;
+  --err: #e35d6a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: rgba(15, 17, 21, .92);
+  backdrop-filter: blur(6px);
+  z-index: 10;
+}
+
+h1 { font-size: 17px; margin: 0; font-weight: 600; }
+h1 .sub { color: var(--muted); font-size: 12px; font-weight: 400; margin-left: 8px; }
+
+.meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
+
+.badge { padding: 2px 9px; border-radius: 10px; font-size: 12px; border: 1px solid var(--line); }
+.badge.idle { color: var(--muted); }
+.badge.run { color: #06121f; background: var(--ok); border-color: var(--ok); }
+
+button {
+  background: #222734; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 12px;
+}
+button:hover { border-color: var(--accent); color: var(--accent); }
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 16px 20px 40px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.card.span2 { grid-column: 1 / -1; }
+
+h2 { font-size: 13px; margin: 0 0 10px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+h2 small { color: var(--muted); font-weight: 400; font-size: 11px; }
+
+.running-box { color: var(--muted); font-size: 13px; }
+.running-box.active { color: var(--fg); }
+.running-box .row { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 4px; }
+.running-box .k { color: var(--muted); }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 500; text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr:hover { background: #1d212b; }
+td.num-ok { color: var(--ok); }
+
+.list { list-style: none; margin: 0; padding: 0; max-height: 200px; overflow: auto; }
+.list li { padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.list li b { color: var(--fg); font-weight: 500; }
+.list li .right { float: right; color: var(--muted); }
+
+.log {
+  margin: 0;
+  background: #0b0d11;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  height: 360px;
+  overflow: auto;
+  font: 12px/1.45 "Cascadia Mono", Consolas, monospace;
+  color: #cfd6e4;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+select {
+  background: #222734; color: var(--fg); border: 1px solid var(--line);
+  border-radius: 6px; padding: 3px 8px; font-size: 12px; max-width: 420px;
+}
+
+.follow { color: var(--muted); font-size: 11px; font-weight: 400; margin-left: auto; display: flex; align-items: center; gap: 4px; }
+
+footer {
+  display: flex; justify-content: space-between;
+  padding: 10px 20px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 11px;
+}
+
+.err { color: var(--err); }

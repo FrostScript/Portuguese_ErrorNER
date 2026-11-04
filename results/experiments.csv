@@ -1,0 +1,3 @@
+run_id,timestamp,arm,split,checkpoint,seed,threshold,precision,recall,micro_f1,macro_f1,per_f1,org_f1,loc_f1,tp,fp,fn,type_error,boundary_error,ci_low,ci_high,gold_entities,pred_entities,sentences,documents,no_entity_ratio,notes
+E0_dev_20261104_113529,2026-11-04 11:35:29,E0,dev,C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER\models\gliner_multi-v2.1,,0.8000,0.7680,0.7323,0.7497,0.7354,0.8360,0.6561,0.7141,1026,310,375,45,45,0.7148,0.7814,1401,1336,1172,40,,mode=固定 0.80; sweep_best=0.8@0.7497
+E1_dev_20261104_115856,2026-11-04 11:58:56,E1,dev,D:\pt_ner_work\checkpoints\E1\seed13\final,13,0.8000,0.7686,0.9079,0.8325,0.8250,0.9125,0.7361,0.8264,1272,383,129,56,29,0.8044,0.8568,1401,1655,1172,40,,mode=固定 0.80; sweep_best=0.9@0.8448
