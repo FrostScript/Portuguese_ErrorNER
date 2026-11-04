@@ -26,6 +26,7 @@ COLUMNS = [
     "split",
     "checkpoint",
     "seed",
+    "max_steps",
     "threshold",
     "precision",
     "recall",

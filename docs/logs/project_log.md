@@ -466,3 +466,49 @@ Get-Content D:\pt_ner_work\results\e1_s13_dev.md -TotalCount 8
 1. E1 还差 seed 23 / 33（各约 82 s + 评测 25 s）。
 2. A4 的 pilot 定 S 仍未做；现在知道单次训练只要 80 秒，扫 4 个 S 值成本可忽略，建议尽快补齐。
 3. 固定 0.80 对微调组偏低 1.2 点，结论口径需要在报告中统一说明。
+
+## 任务 14 — 2026-11-04 A4 pilot 定 S + E1 三种子跑齐
+
+### 做了什么
+1. A4：用 pilot 种子 7 扫 S ∈ {100,200,300,500}，冻结训练步数。
+2. 按冻结的 S 重训 E1 三个正式种子（13/23/33），逐个评测并写入台账。
+3. 台账补 `max_steps` 列，重建 `results/experiments.csv`（删掉 S=300 的旧行）。
+
+### 关键数据
+- **Pilot 曲线（种子 7，dev @0.80）**：S=100 → 0.7617、200 → 0.7990、300 → 0.8209、500 → **0.8366**。单调上升无掉点，按判据取网格内最大者 → **S = 500**。收益递减：300→500 只 +1.6 点。
+- 提升全部来自 Precision（0.6652→0.7908），Recall 微降（0.8908→0.8879）。
+- **E1 三种子 @S=500**：
+
+  | seed | P | R | Micro-F1 | CI |
+  |---|---:|---:|---:|---|
+  | 13 | 0.8161 | 0.8901 | 0.8515 | [0.8313,0.8710] |
+  | 23 | 0.7977 | 0.8951 | 0.8436 | [0.8179,0.8677] |
+  | 33 | 0.8142 | 0.8915 | 0.8511 | [0.8280,0.8728] |
+  | 均值 | 0.8093 | 0.8922 | **0.8487 ± 0.0045** | — |
+
+  分类别均值：PER 0.9340 / ORG 0.7383 / LOC 0.8527。对比 E0（0.7497）**+9.9 点**，CI 完全不重叠。
+- 训练时长 113.6 / 120.2 / 116.6 s，极稳定。种子标准差仅 0.45 点（S=300 时 seed 间差达 1.2 点，步数增加后方差收窄）。
+- **PER−ORG 差距略扩大**：E0 为 0.1799，E1 为 0.1957 —— 微调对 PER 帮助（+9.8）大于 ORG（+8.2），ORG 仍是最该被合成数据补的短板。
+- 固定 0.80 的代价：三种子扫描最优均在 0.90，比 0.80 高 0.3–0.5 点。
+
+### 变更文件
+- 新增：`docs/runs/2026-11-04_A4_pilot_S.md`、`docs/runs/2026-11-04_E1_S500_3seeds.md`
+- 修改：`docs/runs/2026-11-04_E1_seed13_dev.md`（标注已被取代）
+- 修改：`docs/specs/06-training-protocol.md`（S=500 冻结 + pilot 证据 + 待回验说明）
+- 修改：`docs/TODO.md`（A4 / A5 勾选）
+- 修改：`src/eval/record.py`、`src/eval/evaluate.py`（台账新增 max_steps 列与 `--max-steps`）
+- 重建：`results/experiments.csv`（E0 一行 + E1 三行，均带 max_steps）
+- 产物：`D:\pt_ner_work\checkpoints\E1_s500\{seed13,seed23,seed33}\`、`D:\pt_ner_work\checkpoints\pilot_S{100,200,300,500}\`
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+Import-Csv results\experiments.csv | Format-Table arm,seed,max_steps,micro_f1,org_f1,ci_low,ci_high
+Get-Content docs\runs\2026-11-04_A4_pilot_S.md -TotalCount 12
+```
+看板 http://127.0.0.1:8765/ 的台账区已能按行显示 max_steps。
+
+### 遗留问题
+1. A4 的判据只用了 E1（E2 尚未生成），E2 就绪后必须回验 S。
+2. 旧 checkpoint `D:\pt_ner_work\checkpoints\E1\seed13`（S=300）与 4 个 pilot checkpoint 共约 5.8 GB 占用，未删除。
+3. ORG 仍是短板（0.738），E2/E3 的生成配额应偏向 ORG。

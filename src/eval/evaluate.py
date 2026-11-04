@@ -244,6 +244,7 @@ def main() -> int:
                     help="固定阈值（项目统一 0.80）。给了就按该阈值出最终数字，扫描表仅作参考")
     ap.add_argument("--arm", default="E0", help="实验组标识，写入台账")
     ap.add_argument("--seed", default="", help="训练随机种子（E0 留空）")
+    ap.add_argument("--max-steps", default="", help="训练步数，写入台账（E0 留空）")
     ap.add_argument("--record", default=None, help="把最终指标追加到该 CSV（默认 results/experiments.csv）")
     args = ap.parse_args()
 
@@ -324,6 +325,7 @@ def main() -> int:
                 "split": args.split,
                 "checkpoint": str(model_dir),
                 "seed": args.seed,
+                "max_steps": args.max_steps,
                 "threshold": best["threshold"],
                 "precision": best["precision"],
                 "recall": best["recall"],
