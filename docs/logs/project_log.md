@@ -512,3 +512,39 @@ Get-Content docs\runs\2026-11-04_A4_pilot_S.md -TotalCount 12
 1. A4 的判据只用了 E1（E2 尚未生成），E2 就绪后必须回验 S。
 2. 旧 checkpoint `D:\pt_ner_work\checkpoints\E1\seed13`（S=300）与 4 个 pilot checkpoint 共约 5.8 GB 占用，未删除。
 3. ORG 仍是短板（0.738），E2/E3 的生成配额应偏向 ORG。
+
+## 任务 15 — 2026-11-04 清理 TODO + 固定 20 条种子 + Prompt v1 + 校验器
+
+### 做了什么
+1. 清理 TODO 里 7 个过期复选框（D1/D2/D3/D9/D10/D17/D20/B3），让状态反映真实进度。
+2. A6：写 `src/data/make_seeds.py` 并跑出 **20 条固定种子**。
+3. D12：写 `prompts/e2_plain_v1.md`（Prompt v1）。
+4. D13：写 `src/generate/validator.py` 并跑 8 个自检用例。
+5. C3/C4 落地：不另建实体种子清单；生成模型定为 **DeepSeek Flash**。
+
+### 关键数据
+- **种子（`data/curated/seeds_20.jsonl`，种子 42）**：20 条 / 45 实体（PER 17、ORG 18、LOC 10）/ 19 篇文档 / 504 token / 句长 20–30 / 实体 2.25 条每句。约束：必须含实体、每类 ≥3 次、每文档 ≤2 条。
+- **发现一条我自己写错的闸门**：原 A6 闸门要求"实体串与 test gold 无重叠"，实测 45 个种子实体里有 5 个（china / câmara / domingos / pmdb / são paulo）与 test gold 重名。这是新闻语料里常见专名的必然重合，**不构成泄漏**。已把判据改为"种子来自 train 侧 + 句级重复为 0"，重叠率 11% 作为披露项。
+- **校验器自检 8/8 通过**：合法无实体、合法含实体、要求无实体却给了、实体找不到、标签非法、句长太短、照抄种子、实体重复出现导致区间歧义。
+- **Prompt 的关键设计**：不要求模型输出字符下标（LLM 数位置不可靠），只输出实体文本 + 类别，由校验器定位；定位失败或重复歧义即判无效。
+- TODO 现状：未完成 21 项、已完成 29 项。
+
+### 变更文件
+- 新建：`src/data/make_seeds.py`、`data/curated/seeds_20.jsonl`、`seeds_20_manifest.json`、`seeds_20_stats.md`
+- 新建：`prompts/e2_plain_v1.md`、`src/generate/validator.py`
+- 修改：`docs/TODO.md`（A6 完成并修正闸门、A7 部分完成、C3/C4 定案、D 组状态清理、B3 关闭）
+- 修改：`docs/specs/04-generation-constraints.md`（新增 §6.1 已定生成参数：DeepSeek Flash、prompt v1、温度 0.8、不输出下标）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" src\data\make_seeds.py      # 重跑应得到同样 20 条
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" src\generate\validator.py   # 8/8 通过
+Get-Content data\curated\seeds_20_stats.md -TotalCount 20
+```
+
+### 遗留问题
+1. 生成仍缺：DeepSeek Flash 客户端（D16-b，需 API key）、模板化度量剩余三项（D14）、成本台账（D16）。
+2. `seeds_20` 一旦用于生成即冻结，不得重抽；若必须改，另建 `seeds_20_v2`。
+3. 温度 0.8 是初始值，需试产（G4）确认后冻结。

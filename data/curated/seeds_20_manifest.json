@@ -1,0 +1,73 @@
+{
+  "created_by": "src/data/make_seeds.py",
+  "source": "C:\\Users\\liush\\Desktop\\NLP Final Report\\Portuguese_ErrorNER\\data\\curated\\real_300.jsonl",
+  "source_sha256": "8ab402f1f541f3a428993e9416fcd535d41382d904f84ba54a4338701c354017",
+  "output": "C:\\Users\\liush\\Desktop\\NLP Final Report\\Portuguese_ErrorNER\\data\\curated\\seeds_20.jsonl",
+  "output_sha256": "0fdf47ce9e66081403829388134fcde641c8dba2a421dcb2ea43e9f4467c8efd",
+  "seed": 42,
+  "constraints": {
+    "n_seeds": 20,
+    "token_range": [
+      20,
+      30
+    ],
+    "min_per_class": 3,
+    "max_per_document": 2,
+    "must_have_entities": true
+  },
+  "counts": {
+    "seeds": 20,
+    "entities": 45,
+    "per_class": {
+      "LOC": 10,
+      "PER": 17,
+      "ORG": 18
+    },
+    "documents": 19,
+    "tokens": 504,
+    "entities_per_seed": 2.25
+  },
+  "ids": [
+    "batch-0014-0012",
+    "batch-0026-0022",
+    "batch-0043-0015",
+    "batch-0043-0023",
+    "batch-0045-0013",
+    "batch-0072-0009",
+    "batch-0084-0005",
+    "batch-0094-0028",
+    "batch-0096-0024",
+    "batch-0103-0029",
+    "batch-0104-0029",
+    "batch-0106-0024",
+    "batch-0113-0026",
+    "batch-0114-0006",
+    "batch-0121-0009",
+    "batch-0135-0019",
+    "batch-0148-0027",
+    "batch-0163-0015",
+    "batch-0200-0023",
+    "batch-0226-0021"
+  ],
+  "doc_ids": [
+    "train:batch-0014",
+    "train:batch-0026",
+    "train:batch-0043",
+    "train:batch-0045",
+    "train:batch-0072",
+    "train:batch-0084",
+    "train:batch-0094",
+    "train:batch-0096",
+    "train:batch-0103",
+    "train:batch-0104",
+    "train:batch-0106",
+    "train:batch-0113",
+    "train:batch-0114",
+    "train:batch-0121",
+    "train:batch-0135",
+    "train:batch-0148",
+    "train:batch-0163",
+    "train:batch-0200",
+    "train:batch-0226"
+  ]
+}
