@@ -1,0 +1,75 @@
+{
+  "source": "UniversalNER/UNER_Portuguese-Bosque@master",
+  "splits": {
+    "train": {
+      "documents": 235,
+      "sentences": 7018,
+      "entities": 8101,
+      "tokens": 171776,
+      "entities_per_sentence": 1.1543,
+      "tokens_per_sentence": 24.48,
+      "no_entity_sentences": 3122,
+      "no_entity_rate": 0.4449,
+      "per_class": {
+        "ORG": 2762,
+        "LOC": 2425,
+        "PER": 2914
+      },
+      "duplicate_texts": 11,
+      "offset_fallbacks": 0
+    },
+    "dev": {
+      "documents": 41,
+      "sentences": 1172,
+      "entities": 1401,
+      "tokens": 28447,
+      "entities_per_sentence": 1.1954,
+      "tokens_per_sentence": 24.27,
+      "no_entity_sentences": 514,
+      "no_entity_rate": 0.4386,
+      "per_class": {
+        "PER": 570,
+        "LOC": 414,
+        "ORG": 417
+      },
+      "duplicate_texts": 0,
+      "offset_fallbacks": 0
+    },
+    "test": {
+      "documents": 40,
+      "sentences": 1167,
+      "entities": 1215,
+      "tokens": 27604,
+      "entities_per_sentence": 1.0411,
+      "tokens_per_sentence": 23.65,
+      "no_entity_sentences": 544,
+      "no_entity_rate": 0.4662,
+      "per_class": {
+        "ORG": 456,
+        "PER": 442,
+        "LOC": 317
+      },
+      "duplicate_texts": 0,
+      "offset_fallbacks": 0
+    }
+  },
+  "exact_text_overlap": {
+    "train&test": {
+      "exact_duplicate_sentences": 1,
+      "sample": [
+        "Paraíba 1"
+      ]
+    },
+    "train&dev": {
+      "exact_duplicate_sentences": 2,
+      "sample": [
+        "Moustafa El-Guindy, 51, professor-titular de a Unicamp:",
+        "The Washington Post"
+      ]
+    },
+    "dev&test": {
+      "exact_duplicate_sentences": 0,
+      "sample": []
+    }
+  }
+}

@@ -1,0 +1,46 @@
+# 路径与外部资源位置（唯一配置源，供所有脚本读取）
+# 生成时间：E0 准备阶段
+
+paths:
+  workspace: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER"
+  data_raw: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/data/pt_bosque"
+  uner_raw: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/data/raw_uner"
+  models: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/models"
+  docs: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/docs"
+  logs: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/docs/logs"
+  python: "C:/Users/liush/Desktop/NLP Ass#1/.venv/Scripts/python.exe"
+  work_root: "D:/pt_ner_work"
+  hf_cache: "D:/pt_ner_work/hf_cache"
+  checkpoints: "D:/pt_ner_work/checkpoints"
+  synthetic: "D:/pt_ner_work/data/synthetic"
+  raw_responses: "D:/pt_ner_work/raw_responses"
+  results: "D:/pt_ner_work/results"
+
+# 磁盘分工：工作区放代码/文档/真实数据/模型权重；D 盘只放训练产物与生成产物
+# （checkpoint、合成数据、LLM 原始响应、评测结果、HF 缓存）
+
+huggingface:
+  endpoint: "https://hf-mirror.com"
+
+dataset:
+  hub_id: "universalner/universal_ner"
+  config: "pt_bosque"
+  splits: ["train", "dev", "test"]
+
+model:
+  hub_id: "urchade/gliner_multi-v2.1"
+  local_dir: "C:/Users/liush/Desktop/NLP Final Report/Portuguese_ErrorNER/models/gliner_multi-v2.1"
+  base_tokenizer: "microsoft/mdeberta-v3-base"
+  note: "HF Hub API 被镜像限流，权重与分词器由 src/data/fetch_model.py 直连 resolve 链接下载到 local_dir；权重已从 D 盘回迁至工作区"
+
+labels:
+  # UNER pt_bosque 原始标签（IOB2）→ 项目冻结标签
+  map:
+    PER: PER
+    ORG: ORG
+    LOC: LOC
+  frozen: ["PER", "ORG", "LOC"]
+  prompt_name:
+    PER: "person"
+    ORG: "organization"
+    LOC: "location"
