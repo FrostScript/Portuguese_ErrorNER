@@ -19,11 +19,12 @@ Write natural Portuguese in the domain and register of the examples. Do not copy
 3. **Entity Role Integrity (25 分)** —— 实体角色完整：实体类型与其在句中的角色是否被正确保留。
 4. **Tag Format Validation (15 分)** —— 标签格式：`occurrence` 能否唯一定位到原文中的那一次出现；多词实体边界是否完整；同一句内实体是否按位置有序、互不重叠。
 
-严格评分：任何可指出的问题都要扣分。
+严格评分：任何可指出的问题都要扣分。`issues` 最多 2 条，每条不超过 15 个词。
 
 逐条输出一行 JSON，键与类型严格如下：
 {"id":"原ID","status":"keep|revise|reject","score":0-100,"criteria":{"domain_alignment":0-30,"semantic_consistency":0-30,"entity_role_integrity":0-25,"tag_format_validation":0-15},"issues":["..."],"sample":最终样本对象或null}
 - criteria 四项之和必须等于 score；
 - status=keep 表示原样保留；revise 表示按 issues 修正后放在 sample 里；reject 表示无法可靠修复、sample 为 null；
 - 保持原 id，不新增类别，不引入真实种子里的实体；
-- sample 的字段格式与生成步骤一致，**不输出 start/end**。
+- sample 的字段格式与生成步骤一致：**必须含 id、text、entities[{text,label,occurrence}]**，`occurrence` 是该实体在句中第几次出现（从 1 起），**不输出 start/end**；
+- 一个样本拿到 100 分意味着四项都没有任何可扣分之处——请先逐项检查再决定，不要默认给满分。

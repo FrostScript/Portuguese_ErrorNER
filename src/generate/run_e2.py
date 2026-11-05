@@ -112,7 +112,7 @@ def main() -> int:
     # 注意：tokens 必须用「词 + 独立标点」切分，不能用 text.split()。
     # 生成文本里标点紧贴单词（`Braga,`），若按空格切，实体结束位置会落在 token 中间，
     # GLiNER 的词级映射会静默丢实体（实测曾丢掉 147/413 个）。
-    from src.generate.tokenize import tokenize
+    from src.generate.pt_tokenize import tokenize
 
     all_rows = []
     for f in (FINAL_POS, FINAL_NEG):

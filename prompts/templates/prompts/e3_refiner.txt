@@ -22,6 +22,13 @@ Write natural Portuguese in the domain and register of the examples. Do not copy
 
 严格评分：任何可指出的问题都要扣分，不要把"看起来还行"给满分。
 
+**输出必须紧凑（否则会被截断）：**
+- `feedback` 最多 5 条，每条不超过 20 个词；
+- `issues_found` 最多 5 条，每条不超过 20 个词；
+- `revised_guidance` 最多 5 条，每条不超过 20 个词，**合并同类项，不要逐条堆叠**；
+- `batch_coverage_plan` 最多 4 条，每条不超过 15 个词；
+- `annotation_checklist` 最多 5 条，每条不超过 15 个词。
+
 只输出**一个 JSON 对象**（不是 JSONL），键与类型严格如下：
 {
   "score": 0-100 的整数,

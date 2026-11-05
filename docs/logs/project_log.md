@@ -991,3 +991,39 @@ Import-Csv D:\pt_ner_work\results\gen.csv | Format-Table stage,prompt_tokens,com
 1. **E3 尚未真跑**：`--smoke` 需花几次调用，等用户确认。
 2. G4 人工验收仍未正式闭环（我已提供 4 条抽样，判定通过）。
 3. 磁盘：checkpoints 约 65 GB，pilot/probe/smoke 可回收约 40 GB，待用户点头。
+
+## 任务 28 — 2026-11-05 E3 smoke（链路跑通，暴露两个循环的行为问题）
+
+### 做了什么
+1. 重构成"生成为校准服务"：每批生成 → AC 循环（≤3 轮）→ 收下合格样本 → 不够再产下一批（原实现把整侧 165 条一次性送 AC，必然截断）。
+2. 修三个 bug（见下），跑通 smoke：**8 次调用，11 + 9 = 20 条全部合格**。
+
+### 关键数据
+- 含实体 11 条 / 24 个实体 / **区间错误 0**；无实体 9 条。
+- 两类长度 pos 20.45 vs neg 14.78，差幅 **+5.68**（合格区间 +4~+18）；句式重复率 0；种子 8-gram 重叠 0。
+- 样本质量正常，含 `região de Coimbra` 这种跨词 LOC 边界。
+
+### 发现 1：GR 分数越改越低
+三次 smoke 的轨迹：#1 82→78→截断；#2 73→68→74；#3 **77→68→64**。**评分单调下降**，3 轮内从未到 90。
+且当前实现用的是**最后一轮**（最低分）的指导，应该用**最高分那一轮**。
+推测原因：① 改写后条目变多，Context Abstraction(30) 因冗长被扣；② 把上一轮完整评分对象（含自列 issues）喂回去反而更易被判低；③ 论文阈值 90 基于英文科学生物医学语料，葡语新闻不可直接搬。
+
+### 发现 2：AC 打分虚高，零过滤
+6 批 66 条：平均分 97.64–100，**keep 60 / revise 6 / reject 0**。
+同一模型在 GR 上给 64–82 分，说明不是模型宽松，而是 AC 四项（领域对齐/语义一致/实体角色/标签格式）在本任务下几乎不可能不满足——生成的句子同源同模板。论文里 AC 主要抓"错误领域标签"（ARTICLE/STATUS），本项目只有 PER/ORG/LOC 且同模板产出，缺这类错误。
+**结论：E3 与 E2 的差异主要来自 guidance 一步，AC 几乎不起过滤作用。**
+
+### 三个 bug
+1. **输出截断**：GR 第 3 轮 9.4k 字符 + reasoning > 8192 → 模板加"每数组 ≤5 条、每条 ≤20 词"，max_tokens 提到 16384，解析失败改为沿用上一轮而非中止。
+2. **格式混用（严重）**：convert_validate 输出 `start/end`，校准器要 `occurrence`，导致 6 批 77 条全部校验失败。新增 `_to_model_format()`；`revise` 输出不完整时退回原样本。
+3. **遮蔽标准库**：`src/generate/tokenize.py` 与 stdlib 同名 → scipy 导入即崩。改名 `pt_tokenize.py` 并更新引用。
+
+### 变更文件
+- 新建：`docs/runs/2026-11-05_E3_smoke.md`
+- 修改：`src/generate/run_e3.py`（批级 AC + 三个 bug 修）、`src/generate/metrics.py`（无实体时 to_markdown 崩溃）、`src/generate/run_e2.py`（引用改名）、`prompts/templates/prompts/e3_refiner.txt`、`e3_calibrator{,_negative}.txt`
+- 改名：`src/generate/tokenize.py` → `src/generate/pt_tokenize.py`
+
+### 遗留问题/待决策
+1. GR 应取最高分那一轮（当前取最后一轮）——建议改。
+2. AC 过滤力弱：是否调严（阈值降到 85 / 强制列问题）或作为记录性检查并在报告说明。
+3. 数据仍只有 20 条 smoke，正式 300 条未跑。

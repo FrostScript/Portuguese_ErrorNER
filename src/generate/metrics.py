@@ -196,8 +196,10 @@ def to_markdown(res: dict) -> str:
                   f"| 与种子 8-gram 重叠条数 | {d['seed_ngram']['with_seed_ngram_overlap']} |", ""]
         if key == "pos" and "entity_reuse" in d:
             r = d["entity_reuse"]
-            lines += ["| 实体总数 | %s |" % r["entities"], "| 不同实体 | %s |" % r["distinct_entities"],
-                      "| 来自种子实体 | %s |" % r["reused_from_seeds"], "| 实体复用率 | %s |" % r["reuse_rate"], ""]
+            lines += ["| 实体总数 | %s |" % r["entities"],
+                      "| 不同实体 | %s |" % r.get("distinct_entities", "—"),
+                      "| 来自种子实体 | %s |" % r["reused_from_seeds"],
+                      "| 实体复用率 | %s |" % r["reuse_rate"], ""]
     lc = res.get("length_comparison")
     if lc and "verdict" in lc:
         lines += ["## 长度分布对比", "", "| 批 | n | 均值 | 中位 | 最小 | 最大 | 标准差 |", "|---|---:|---:|---:|---:|---:|---:|"]
