@@ -180,7 +180,13 @@ D:\pt_ner_work\
 | `data/make_split_manifest.py` | 三集文档清单 + 泄漏审计 |
 | `eval/evaluate.py` | **主评测器**：候选缓存 → 阈值扫描 → 严格匹配 → per-class → 错误分类 → bootstrap CI |
 | `eval/record.py` | 往 `results/experiments.csv` 追加一行（27 字段统一台账） |
-| `generate/validator.py` | **第二阶段**项目级检查（句长 20–30、实体数 ≤3、抄种子与 8-gram、跨批重复、无实体句比例）；格式与偏移由 `prompts/templates/convert_validate.py` 负责 |
+| `generate/validator.py` | **第二阶段**项目级检查（句长 17–30 词、实体数 ≤5、抄种子与 8-gram、跨批重复、无实体句比例）；格式与偏移由 `prompts/templates/convert_validate.py` 负责 |
+| `generate/client.py` | DeepSeek 客户端：读 key、调用 `/chat/completions`、429/5xx 指数退避、每次响应落盘 `D:\pt_ner_work\raw_responses\` |
+| `generate/pipeline.py` | 通用生成流水线：渲染 → 调用 → 逐行解析（一行坏不废整批）→ 两级校验 → 只补不删 → 合并 |
+| `generate/run_e2.py` | **E2 入口**：165 含实体 + 135 无实体，跑完自动做项目级检查与质量度量 |
+| `generate/ledger.py` | 生成台账 `D:\pt_ner_work\results\gen.csv`（token、候选、接受、拒绝、费用） |
+| `generate/metrics.py` | 质量度量：实体复用率、句式重复率、两类句长分布（Mann-Whitney）、种子 8-gram 重叠 |
+| `generate/preflight.py` | API key 预检（只报来源/长度/格式，不打印明文） |
 | `train/train_arm.py` | **通用微调入口**（E1/E2/E3 共用），产出 checkpoint + `train_config.json` |
 | `train/smoke_finetune.py` | Python 3.14 微调可行性冒烟测试（A1 用，2 步） |
 | `smoke_test_e0.py` | 环境冒烟：加载权重 + 20 句零样本推理 |
@@ -266,6 +272,8 @@ data/pt_bosque/{train,dev,test}.jsonl ──► data/pt_bosque/split_manifest.*�
       │                                 convert_validate.py（格式与偏移）
       │                                                  ▼
       │                                 src/generate/validator.py（项目规范）
+      │                                                  ▼
+      │                                   src/generate/metrics.py（质量度量）
       │                                                  ▼
       │                                        E2 / E3 各 300 条（165 + 135）
       ▼

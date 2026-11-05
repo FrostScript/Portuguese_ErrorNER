@@ -763,3 +763,46 @@ git log --oneline -1
 ### 遗留问题
 1. 无实体批次缺范例的风险未消除，只是延后到试产验证；若试产发现语体漂移，需加 `{NO_ENTITY_EXAMPLES}` 占位符并改两个 negative 模板。
 2. 生成链路仍缺 DeepSeek 客户端（D16-b）、成本台账（D16）、模板化度量三项（D14）。
+
+## 任务 22 — 2026-11-04 生成链路完成（客户端 + 流水线 + 台账 + 度量）
+
+### 做了什么
+把 D16-b / D16 / D14 三块一次写完，并新增流水线与 E2 入口；把两个模板脚本重构成可 import 的函数（命令行行为不变），避免在沙箱里起子进程（管道会 EPERM）。
+
+| 新模块 | 职责 |
+|---|---|
+| `src/generate/client.py` | DeepSeek 客户端：key 从环境变量或密钥文件读、POST `/chat/completions`、429/5xx 指数退避、4xx 直接失败、每次响应落盘 `D:\pt_ner_work\raw_responses\`、累计 token |
+| `src/generate/pipeline.py` | 单批流程（渲染→调用→逐行解析→两级校验）与"只补不删"的采集循环；**一行坏不废整批**（先丢解析失败行，再严格校验） |
+| `src/generate/run_e2.py` | E2 入口：pos 11/批 → 165 条、neg 9/批 → 135 条；`--dry-run` / `--smoke` / `--budget-usd` / `--max-calls` |
+| `src/generate/ledger.py` | 生成台账 `gen.csv`（20 列）+ 费用估算 + 汇总 |
+| `src/generate/metrics.py` | 实体复用率、句式重复率（骨架去重 + 4-gram 共享率）、两类句长分布（Mann-Whitney）、与种子 8-gram 重叠 |
+| `prompts/templates/prepare_prompt.py` | 重构为 `render()` + CLI（命令行用法不变） |
+| `prompts/templates/convert_validate.py` | 重构为 `convert_validate()` + CLI（行为、报错文案不变） |
+
+### 关键数据
+- 7 个新/改模块 **全部 `py_compile` 通过**。
+- `--dry-run` 渲染：含实体 6,224 字符 / 无实体 6,206 字符；**占位符 0 残留、无 start/end 注入、种子各 20/20 命中**。
+- 度量自检通过：Mann-Whitney 正常执行（scipy 1.18.1 可用），能给出"长度分布是否有显著差异"的判词。
+- 台账写入验证：20 列表头正确，`summarize()` 能算出 accept_rate 与 cost；测试行已清理，`gen.csv` 等正式运行时重建。
+- 额度保护：`--max-calls`（默认 60）与 `--budget-usd`（默认 1.0）任一触顶即停；价格未配置时 cost 记 0 但 token 照实记录。
+
+### 变更文件
+- 新建：`src/generate/client.py`、`pipeline.py`、`run_e2.py`、`ledger.py`、`metrics.py`
+- 重构：`prompts/templates/prepare_prompt.py`、`prompts/templates/convert_validate.py`（均保留原 CLI）
+- 修改：`README.md`（src 模块表补 6 项、数据流补 metrics 环节）、`docs/TODO.md`（A7 的 D14/D16/D16-b/D16-c 勾选）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+$py = "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe"
+& $py src\generate\run_e2.py --dry-run      # 只渲染，不花钱
+& $py src\generate\metrics.py               # 度量自检
+& $py src\generate\preflight.py --ping      # 验证 key 与额度
+```
+
+### 遗留问题
+1. **尚未真实调用 API**：`--smoke`（各 1 批，约 2 次请求）还没跑，因此 `llm.base_url`、模型名 `deepseek-flash`、返回格式均未实测。
+2. `--price-in/--price-out` 默认 0，费用列会显示 0；正式跑前需按账号价格填入（或事后按 token 数换算）。
+3. E3 入口 `run_e3.py` 未写（四阶段 + 双路径），等 E2 跑通再补。
+4. `--smoke` 产出的 20 条即 G4 试产样本，需人工按 `specs/04` §5.1 三项判据检查。

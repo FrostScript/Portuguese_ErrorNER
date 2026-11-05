@@ -50,9 +50,11 @@
   - [x] D12 Prompt → **采用 `prompts/templates/` 模板集**（5 个原始模板 + 新增 `e2_negative.txt` 无实体变体）
   - [x] D13 两阶段校验：`prompts/templates/convert_validate.py`（格式与偏移，新增 `--expect auto/entity/none`）+ `src/generate/validator.py`（句长/密度/抄种子/跨批重复/负样本比例）
   - [x] `label_schema.json` 的 4 条标注规则并入 `specs/03` §5.1；`occurrence` 语义写入 §6
-  - [ ] D14 模板化度量：n-gram 重叠、完全重复、抄种子已覆盖；**仍缺**实体复用率、句式重复率、两类句长分布对比
-  - [ ] D16 成本台账
-  - [ ] D16-b DeepSeek Flash 调用客户端（需 API key）
+  - [x] D14 模板化度量：`src/generate/metrics.py` —— 实体复用率、句式重复率（骨架 + 4-gram）、两类句长分布（Mann-Whitney）、种子 8-gram 重叠
+  - [x] D16 生成成本台账：`src/generate/ledger.py` → `D:\pt_ner_work\results\gen.csv`（token / 候选 / 接受 / 拒绝 / 费用）
+  - [x] D16-b DeepSeek 客户端：`src/generate/client.py`（读 key、429/5xx 退避、原始响应落盘）
+  - [x] D16-c 流水线：`src/generate/pipeline.py` + `src/generate/run_e2.py`（一行坏不废整批、只补不删、额度保护）
+  - [ ] 实跑试产（`--smoke`，各 1 批）→ G4 验收
   **闸门 G4：** 试产 30–50 条人工检查通过率达标；两类各自达标（含实体批 11 条、无实体批 9 条）；无实体句比例可精确控制到 45%。
   **G4 必须额外检查（已知风险）：** 无实体批次没有真实范例（20 条种子全含实体），试产时逐条确认：① 无实体句不是"挖空"的残缺句；② 语体与含实体批一致；③ 没有写得空泛。三项任一不过 → 从 `real_300` 的 135 条真实无实体句中取 3 条作为补充范例注入。详见 `specs/04` §5.1。
 
