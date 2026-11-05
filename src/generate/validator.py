@@ -29,8 +29,13 @@ sys.path.insert(0, str(WORKSPACE))
 from src.common import env  # noqa: F401
 
 LABELS = {"PER", "ORG", "LOC"}
-MIN_TOKENS, MAX_TOKENS = 20, 30
-MAX_ENTITIES = 3
+# 句长按「空格切词」计（生成文本没有 UD 分词，只能用空格）。
+# 换算：空格词数 / UD token ≈ 0.861（种子实测），故 UD 20–30 对应空格 17–26，
+# 这里取 17–30 作为下界对齐种子最短句、上界留余量。
+MIN_TOKENS, MAX_TOKENS = 17, 30
+# E1 真实数据中含实体句的实体数分布为 1:70 / 2:44 / 3:26 / 4:11 / 5:7 / 6+:7，
+# 15% 的句子超过 3 个实体，因此上界取 5 而不是 3，避免合成数据系统性偏离 E1。
+MAX_ENTITIES = 5
 NGRAM = 8
 WORD_RE = re.compile(r"\S+")
 
@@ -132,7 +137,9 @@ def _selftest() -> int:
             {"start": 0, "end": 1, "text": ok_text[0:1], "label": "PER"},
             {"start": 2, "end": 3, "text": ok_text[2:3], "label": "PER"},
             {"start": 4, "end": 5, "text": ok_text[4:5], "label": "PER"},
-            {"start": 6, "end": 7, "text": ok_text[6:7], "label": "PER"}]}, [], "auto", False),
+            {"start": 6, "end": 7, "text": ok_text[6:7], "label": "PER"},
+            {"start": 8, "end": 9, "text": ok_text[8:9], "label": "PER"},
+            {"start": 10, "end": 11, "text": ok_text[10:11], "label": "PER"}]}, [], "auto", False),
         ("非法-区间不符", {"id": "b5", "text": ok_text,
                           "entities": [{"start": 0, "end": 3, "text": "ZZZ", "label": "PER"}]}, [], "auto", False),
     ]

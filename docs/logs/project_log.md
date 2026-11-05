@@ -695,3 +695,42 @@ $env:PYTHONIOENCODING="utf-8"
 1. 用户填入 key 后需跑一次 `preflight.py`（建议加 `--ping`）确认可用。
 2. key 就绪后待做：DeepSeek Flash 客户端（D16-b）、成本台账（D16）、模板化度量剩余三项（D14）、E2 试产（G4 闸门）。
 3. `configs/paths.yaml` 里新增的 `llm.base_url` 默认写的是 `https://api.deepseek.com`，首次实调时需确认路径与模型名 `deepseek-flash` 是否正确。
+
+## 任务 20 — 2026-11-04 Prompt 全文检查与 6 项修正
+
+### 做了什么
+逐条审阅 8 个模板与渲染后的实际 Prompt，发现 4 个会直接影响产量或数据质量的问题（其中 2 个是代码 bug），按建议全部修正。
+
+### 关键数据（问题 → 证据 → 修正）
+1. **两把尺子量句长（代码 bug）**：specs 与种子的 20–30 是按 **UD token**（真实数据 24.48/句），而 `validator.py` 按**空格切词**算。20 条种子实测 UD 20–30 ↔ 空格 **15–28**，比值 **0.861**。修正：校验器改为 **17–30 空格词**；specs/04 新增 §2.1 说明换算。
+2. **Prompt 没写任何数字**：`e2_generation.txt` 原文只有"参考种子长度但允许自然变化"，实体数一字未提，而校验器硬卡数值。修正：4 个生成模板加入硬约束段（17–30 词、1–5 实体）。
+3. **种子本身违反约束**：20 条里 5 条词数 <20、**4 条实体数 >3（最多 5）**。进一步查 E1 真实分布：`1:70 / 2:44 / 3:26 / 4:11 / 5:7 / 6+:7`，**15% 的句子有 4 个以上实体**。修正：实体上界放宽到 **5**（覆盖 E1 的 95%），而不是改种子——卡 3 会让合成数据系统性偏离 E1。
+4. **ID 唯一性无保证**：含实体模板只说"用 batch ID 作前缀"，示例是常量 `batch_001`，若逐行复用会让合并后整批失败。修正：明确 `{BATCH_ID}_001` 递增格式。
+5. **种子注入带 start/end**：渲染后 7,338 字符里 6,007 是带偏移的种子 JSON，与第 9 行"Do not output character offsets"自相矛盾。修正：注入时剥掉偏移并改紧凑 JSON，**6,007 → 4,661 字符**，整份 Prompt 7,338 → 6,255。
+6. **guidance/refiner 头部与正文冲突**：头部要"输出 JSONL 样本"，正文要"一个含 5 个数组的 JSON 对象"。修正：两模板头部改为"本步骤不生成样本"，calibrator 两模板也加了状态信封说明与 17–30 词检查项。
+
+### 验证数据
+- 8 个 stage 全部重渲染：**占位符 0 残留、无一处注入 start/end**。
+- 校验器自检 6/6 通过（实体超限用例改为 6 个实体）。
+- 词数边界实测：16 词拒绝 / 17 ok / 30 ok / 31 拒绝。
+- 端到端回归：新 JSONL 格式 `e2_001_001` 递增 id → convert 2/2 通过 → 项目级检查 2 accepted / 0 rejected。
+
+### 变更文件
+- 修改：`prompts/templates/prepare_prompt.py`（剥 start/end、紧凑 JSON）
+- 修改：`src/generate/validator.py`（17–30 词、实体上界 5、自检用例）
+- 重写/修改：`prompts/templates/prompts/` 下 6 个模板（e2_generation、e2_negative、e3_generation、e3_negative、e3_guidance、e3_refiner、e3_calibrator、e3_calibrator_negative）
+- 修改：`docs/specs/04-generation-constraints.md`（§2 硬约束表 + §2.1 口径换算 + §2.2 实体上界依据）
+- 修改：`README.md`（§五 约定表新增词数与实体数两行）、`prompts/templates/README.md`（注入与硬约束说明）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER\prompts\templates"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" prepare_prompt.py e2_generation --batch e2_001 --n 11 --out r.txt
+Select-String -Path r.txt -Pattern "17 and 30 words|1 and 5 entities|e2_001_001|`"start`""
+```
+
+### 遗留问题
+1. 种子未重选（按决策放宽了实体上界而非换种子）；若后续抽检发现 4–5 实体的样本质量差，可考虑 `seeds_20_v2`。
+2. 仍缺 DeepSeek 客户端（D16-b）、成本台账（D16）、模板化度量三项（D14）。
+3. `label_schema.json` 的规则仍是工作规范而非官方规范，抽检时需区分口径差异与生成错误。

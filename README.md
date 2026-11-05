@@ -292,6 +292,8 @@ src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<see
 | 标签两套写法 | 数据与报告用 `PER/ORG/LOC`；喂模型用 `person/organization/location` | `specs/03` §1 |
 | 字符区间 | 左闭右开 `[start, end)`，且 `text[start:end] == 实体文本` | `specs/03` §3 |
 | 负样本比例 | E2/E3 各 135 无实体 + 165 含实体，同批产出，只补不删 | `specs/05` |
+| 每句词数 | **17–30 个空格切分的词**（≈ UD 20–35 token） | `specs/04` §2.1 |
+| 每句实体数 | **1–5**（覆盖 E1 的 95%） | `specs/04` §2.2 |
 | 生成模型 | DeepSeek Flash（固定，不中途更换） | `specs/04` §6.1 |
 | 种子 | `seeds_20.jsonl` 已冻结，不得重抽 | `docs/TODO.md` A6 |
 
