@@ -28,6 +28,7 @@ COLUMNS = [
     "prompt_tokens",
     "completion_tokens",
     "total_tokens",
+    "reasoning_tokens",
     "candidates",
     "accepted",
     "rejected",

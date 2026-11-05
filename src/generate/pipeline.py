@@ -73,13 +73,13 @@ def generate_one_batch(
     out_dir.mkdir(parents=True, exist_ok=True)
     tag = f"{arm}_{stage}_{batch_id}"
 
+    comp = client.complete(prompt, tag=tag) if not dry_run else None
     if dry_run:
         prompt_path = out_dir / f"{tag}.prompt.txt"
         prompt_path.write_text(prompt, encoding="utf-8")
         return {"stage": stage, "batch_id": batch_id, "dry_run": True, "prompt_chars": len(prompt),
                 "prompt_path": str(prompt_path), "accepted": 0, "candidates": 0}
 
-    comp = client.complete(prompt, tag=tag)
     raw_path = out_dir / f"{tag}.raw.txt"
     raw_path.write_text(comp.text, encoding="utf-8")
 
@@ -115,6 +115,7 @@ def generate_one_batch(
             "prompt_tokens": comp.prompt_tokens,
             "completion_tokens": comp.completion_tokens,
             "total_tokens": comp.total_tokens,
+            "reasoning_tokens": getattr(comp, "reasoning_tokens", 0),
             "candidates": candidates,
             "accepted": accepted,
             "rejected": rejected,
@@ -129,6 +130,7 @@ def generate_one_batch(
     return {
         "stage": stage, "batch_id": batch_id, "candidates": candidates, "accepted": accepted,
         "rejected": rejected, "prompt_tokens": comp.prompt_tokens, "completion_tokens": comp.completion_tokens,
+        "reasoning_tokens": getattr(comp, "reasoning_tokens", 0),
         "cost_usd": round(cost, 6), "note": note,
     }
 
@@ -157,11 +159,27 @@ def collect(
     while len(accepted_rows) < target and stats["calls"] < max_calls and stats["cost_usd"] < budget_usd:
         idx += 1
         batch_id = f"{batch_prefix}{idx:03d}"
-        r = generate_one_batch(
-            client, stage=stage, batch_id=batch_id, n=per_batch, expect=expect,
-            out_dir=out_dir, arm=arm, ledger_path=ledger_path,
-            price_in=price_in, price_out=price_out, extra=extra,
-        )
+        try:
+            r = generate_one_batch(
+                client, stage=stage, batch_id=batch_id, n=per_batch, expect=expect,
+                out_dir=out_dir, arm=arm, ledger_path=ledger_path,
+                price_in=price_in, price_out=price_out, extra=extra,
+            )
+        except Exception as exc:  # noqa: BLE001  截断/网络等：记一行失败，继续下一批
+            stats["calls"] += 1
+            stats["failed"] = stats.get("failed", 0) + 1
+            note = f"{type(exc).__name__}: {str(exc)[:160]}"
+            ledger.append_row(
+                {"run_id": f"{arm}_{datetime.now():%Y%m%d}", "arm": arm, "stage": stage,
+                 "batch_id": batch_id, "expect": expect, "model": getattr(client, "model", ""),
+                 "temperature": getattr(client, "temperature", ""), "candidates": 0, "accepted": 0,
+                 "rejected": 0, "notes": note},
+                ledger_path,
+            )
+            print(f"  [{stage} {batch_id}] 失败：{note[:100]}", flush=True)
+            stats["batches"].append({"stage": stage, "batch_id": batch_id, "error": note,
+                                     "accepted": 0, "candidates": 0, "cost_usd": 0.0})
+            continue
         stats["calls"] += 1
         stats["candidates"] += r.get("candidates", 0)
         stats["cost_usd"] = round(stats["cost_usd"] + r.get("cost_usd", 0.0), 6)

@@ -318,6 +318,7 @@ src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<see
 | 沙箱不能执行 `.ps1` | `ConstrainedLanguage` 限制，会话内改用内联 tee |
 | `datasets` 5.0.1 不支持脚本型数据集 | UNER 改走 GitHub 原始 iob2 |
 | 密钥泄露 | 见第八节 |
+| **`deepseek-flash` 是推理模型** | thinking 会吃掉输出配额（high 时 6.8k–7.4k token，正文常为空）。**必须 `reasoning_effort=low`**，`client.py` 已默认；详见 `specs/04` §6.3 |
 
 ---
 

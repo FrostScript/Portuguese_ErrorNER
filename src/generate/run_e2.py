@@ -52,6 +52,10 @@ def main() -> int:
     ap.add_argument("--model", default="deepseek-flash")
     ap.add_argument("--base-url", default="https://api.deepseek.com")
     ap.add_argument("--temperature", type=float, default=0.8)
+    ap.add_argument("--max-tokens", type=int, default=8192,
+                    help="单次输出上限。deepseek-flash 是推理模型，thinking 会占掉大部分配额，过低会导致正文为空")
+    ap.add_argument("--reasoning-effort", default="low", choices=["low", "medium", "high"],
+                    help="推理强度。实测 high 时 thinking 吃 6.8k–7.4k token，正文常为空；low 降到约 3.4k")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
     args = ap.parse_args()
 
@@ -72,8 +76,10 @@ def main() -> int:
 
     from src.generate.client import DeepSeekClient
 
-    client = DeepSeekClient(model=args.model, base_url=args.base_url, temperature=args.temperature)
-    print(f"模型 {client.model} @ {client.base_url}，温度 {client.temperature}")
+    client = DeepSeekClient(model=args.model, base_url=args.base_url, temperature=args.temperature,
+                            max_tokens=args.max_tokens, reasoning_effort=args.reasoning_effort)
+    print(f"模型 {client.model} @ {client.base_url}，温度 {client.temperature}，"
+          f"max_tokens {client.max_tokens}，reasoning_effort {client.reasoning_effort}")
     print(f"目标：{target_pos} 含实体 + {target_neg} 无实体")
 
     print("\n[1/2] 含实体批次")

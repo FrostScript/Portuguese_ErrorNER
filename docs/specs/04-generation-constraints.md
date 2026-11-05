@@ -102,6 +102,8 @@ E1 真实数据 165 条含实体句中，实体数分布为 `1:70 / 2:44 / 3:26 
 | 每批结构 | 20 条 = 11 含实体（`e2_generation`）+ 9 无实体（`e2_negative`），**两次独立请求** |
 | 输出格式 | **JSONL**，一行一条：`{"id","text","entities":[{"text","label","occurrence"}]}` |
 | 温度 | 0.8（试产确认后冻结） |
+| **推理强度** | `reasoning_effort = low`（**必须**，见 §6.3） |
+| **单次输出上限** | `max_tokens = 8192` |
 | 批次 ID | 形如 `e2_001` / `e2_101`（含实体 / 无实体用不同号段），**不得重复** |
 
 **关键设计一：模型不输出字符下标。** 只给实体文本 + `occurrence`，由 `convert_validate.py` 定位计算 `[start, end)`。见 `specs/03` §6。
@@ -129,5 +131,19 @@ E1 真实数据 165 条含实体句中，实体数分布为 `1:70 / 2:44 / 3:26 
 | `e3_calibrator_negative` | E3 校准无实体批 | — | `--expect none` |
 
 E3 的无实体批次切在 `e3_generation` 之后、沿用同一份 refined guidance，保证两类句子的语体与主题分布一致。
+
+### 6.3 deepseek-flash 是推理模型：必须调低 reasoning_effort
+
+2026-11-04 实测（每次请求 11 条）：
+
+| 配置 | reasoning tokens | 正文 | 结果 |
+|---|---:|---|---|
+| 默认（effort=high），max_tokens 4096 | 4,096 | **0 字符** | `finish_reason=length`，3/5 次调用完全废掉 |
+| 默认（effort=high），max_tokens 8192 | 6,861–7,418 | 约 800 token | 仍会截断，只能出 6–7 条 |
+| **effort=low，max_tokens 8192** | 1,575–5,805 | 完整 | `finish=stop`，11 条一次出完 |
+
+**结论：** 该模型把输出配额的大部分花在 thinking 上，正文空间被挤压。必须 `reasoning_effort=low`，否则会出现"调用成功但正文为空"的隐性浪费。`client.py` 已默认 `low`，并对"finish_reason=length 且正文为空"抛 `TruncatedError`，由流水线记为失败批次而不是静默归零。
+
+**成本影响：** 单次调用约 1.9k 输入 + 2.0k–6.9k 输出（含 reasoning）。30 次调用约 12 万–26 万 token，具体开销取决于 thinking 长度。
 
 **实体种子来源：** 不另建实体清单。20 条种子自带的 45 个实体（PER 17 / ORG 18 / LOC 10）即 Prompt 的实体示例来源，可追溯至 UNER `pt_bosque` train。

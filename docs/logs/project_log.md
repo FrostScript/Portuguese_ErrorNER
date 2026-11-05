@@ -806,3 +806,54 @@ $py = "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe"
 2. `--price-in/--price-out` 默认 0，费用列会显示 0；正式跑前需按账号价格填入（或事后按 token 数换算）。
 3. E3 入口 `run_e3.py` 未写（四阶段 + 双路径），等 E2 跑通再补。
 4. `--smoke` 产出的 20 条即 G4 试产样本，需人工按 `specs/04` §5.1 三项判据检查。
+
+## 任务 23 — 2026-11-04 生成链路真实调用验证（发现并修复推理模型配额问题）
+
+### 做了什么
+跑 `--smoke`（各 1 批）验证链路，暴露出一个隐蔽问题：deepseek-flash 是**推理模型**，thinking 会吃掉输出配额。修复后重跑，链路完全跑通。
+
+### 关键数据
+**问题 1（严重）：推理占满配额，正文为空**
+| 配置 | reasoning tokens | 正文 | 结果 |
+|---|---:|---|---|
+| 默认 high，max_tokens 4096 | 4,096 | **0 字符** | `finish_reason=length`，首次 smoke 5 次调用里 **3 次全废** |
+| 默认 high，max_tokens 8192 | 6,861–7,418 | 约 800 token | 仍截断，只出 6–7 条 |
+| **low，max_tokens 8192** | 1,575–5,805 | 完整 | `finish=stop`，11 条一次出完 |
+
+修法：`client.py` 默认 `reasoning_effort=low`；新增 `TruncatedError` 检测"finish=length 且正文为空"，由流水线记为失败批次（不再静默归零）；台账新增 `reasoning_tokens` 列。
+
+**问题 2：首次 smoke 的长度分布误报**
+首轮 pos 只收到 6 条（截断的残批），Mann-Whitney p=0.0051 报"显著差异"。修复后完整批次重跑：pos 22.45 词（18–26）/ neg 22.11 词（20–25），**p=0.7008，无显著差异**，符合 specs/04 §5。此前那条"违反规范"的结论是残批造成的假阳性。
+
+**最终验证结果（2 次调用）**
+- e2_0001：prompt 1,875 / completion 6,863（reasoning 5,805）→ 11/11 通过，`finish=stop`
+- e2_1001：prompt 1,881 / completion 2,036（reasoning 1,575）→ 9/9 通过，`finish=stop`
+- 项目级检查：含实体 11 accepted / 0 rejected；无实体 9 accepted / 0 rejected，no_entity_ratio 1.0
+- 质量度量：实体复用率 **0**（没抄种子里的名字）、句式重复率 **0**、种子 8-gram 重叠 **0**
+- 类别分布：PER 6 / ORG 13 / LOC 8（ORG 占 48%，E1 是 30%，需在正式跑后复核）
+- 脚本返回码：dry-run exit=0，smoke 全流程跑完（终端里的 exit 1 是 PowerShell 对 stderr 的 NativeCommandError 假象）
+
+### 变更文件
+- 修改：`src/generate/client.py`（max_tokens 8192、reasoning_effort 默认 low、TruncatedError、reasoning_tokens）
+- 修改：`src/generate/pipeline.py`（失败批次记台账并继续；台账加 reasoning_tokens）
+- 修改：`src/generate/run_e2.py`（`--max-tokens`、`--reasoning-effort`）
+- 修改：`src/generate/ledger.py`（新增 reasoning_tokens 列）
+- 修改：`docs/specs/04-generation-constraints.md`（§6.1 加两行、新增 §6.3 推理模型实测表）
+- 修改：`README.md`（已知坑新增"deepseek-flash 是推理模型"）、`docs/TODO.md`（A7 记录试产结果 + G4 待人工验收 + 类别平衡观察）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+$py = "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe"
+& $py src\generate\run_e2.py --smoke          # 2 次调用，各 1 批
+& $py src\generate\metrics.py data\synthetic\e2\e2_pos.jsonl --neg data\synthetic\e2\e2_neg.jsonl
+Import-Csv D:\pt_ner_work\results\gen.csv | Format-Table stage,prompt_tokens,completion_tokens,reasoning_tokens,accepted
+```
+
+### 遗留问题
+1. **G4 人工验收未做**：无实体批次的 9 条需人看是否"挖空/空泛"（specs/04 §5.1）。
+2. 价格参数仍为 0，台账 cost 列为 0；需按账号单价填入或将 token 数事后换算。
+3. ORG 偏多（48% vs E1 的 30%），正式跑 165 条后要复核类别分布，必要时在 Prompt 或配额上干预。
+4. reasoning 长度波动大（1.5k–5.8k），同一配置下成本不稳定；正式跑前建议先跑 3 批估平均开销。
+5. E3 入口 run_e3.py 未写。
