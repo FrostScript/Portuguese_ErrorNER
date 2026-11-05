@@ -630,3 +630,34 @@ Select-String -Path step3b.txt -Pattern "\{[A-Z_]+\}"        # 应无输出
 1. E3 的 guidance / refiner 两步产物（JSON）尚无 schema 校验，目前靠人工看；建议在客户端里加一次结构检查。
 2. 仍缺 DeepSeek Flash 客户端（D16-b）、成本台账（D16）、模板化度量剩余三项（D14）——都要 API key。
 3. `prompts/` 下仍有两份模板副本（用户原始解压的 `E2_E3_Prompt_模板版/` 与 `templates/`），未清理。
+
+## 任务 18 — 2026-11-04 删除重复模板目录 + README 同步 + 密钥约定
+
+### 做了什么
+1. 删除用户自己解压的 `prompts/E2_E3_Prompt_模板版/`（10 个文件），保留 `E2_E3_Prompt_模板版.zip` 作为原始归档。
+2. 更新根目录 `README.md`：prompts 一节改写为 templates 的 8 个 stage；更新 validator 的两阶段分工；数据流补上生成与双路校验；新增「八、密钥与凭证」「九、文档维护约定」两节。
+3. `.gitignore` 增加密钥兜底：`.env`、`.env.*`、`.secrets/`、`*.key`、`*.pem`、`credentials*.json`。
+4. `specs/09-run-records.md` 新增 §5 文档维护约定（README 由 AI 自动同步）。
+
+### 关键数据
+- 删除前核对：目标路径 `.../prompts/E2_E3_Prompt_模板版`，确认位于 prompts 下、10 个文件，删除后 `prompts/` 只剩 zip + e2_plain_v1.md + templates/（11 文件）。
+- `.gitignore` 兜底实测：`.env` / `.secrets/x` / `t.key` / `credentials.json` 四个探针全部被正确忽略。
+- README 现有 10 个一级章节，新增密钥与维护约定两节。
+
+### 变更文件
+- 删除：`prompts/E2_E3_Prompt_模板版/`（10 个文件）
+- 修改：`README.md`（§3.4 validator 描述、§3.5 prompts 重写、§四 数据流、新增 §八 §九、编号顺延）
+- 修改：`.gitignore`（密钥兜底）
+- 修改：`docs/specs/09-run-records.md`（§5 文档维护约定）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+Get-ChildItem prompts -Recurse -File | Measure-Object      # 13 个文件（zip + md + templates 11）
+git check-ignore -v .env .secrets/x t.key                  # 全部命中
+Select-String -Path README.md -Pattern "^## "
+```
+
+### 遗留问题
+1. **API key 仍未提供**，生成链路（D16-b 客户端、D16 成本台账、D14 剩余度量）无法开工。推荐方式 A：用户自行设 `DEEPSEEK_API_KEY` 环境变量，我只读不打印。
+2. 用户询问"直接提供 key 是否有安全问题"，已在 README §八给出三级方案与硬性禁止项。

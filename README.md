@@ -2,6 +2,8 @@
 
 葡萄牙语命名实体识别（NER）实验项目：以 GLiNER 为基座，比较**零样本**、**真实数据微调**与**LLM 合成数据微调**在 `pt_bosque` 上的效果。
 
+> **维护约定：** 本文件随每次结构性改动自动同步（新增/删除文件、目录变化、约定变更、结论更新），不需逐次确认。文档分工见第九节。
+
 **当前状态（2026-11-04）**
 
 | 实验 | 状态 | 结果（dev，阈值 0.80） |
@@ -178,16 +180,33 @@ D:\pt_ner_work\
 | `data/make_split_manifest.py` | 三集文档清单 + 泄漏审计 |
 | `eval/evaluate.py` | **主评测器**：候选缓存 → 阈值扫描 → 严格匹配 → per-class → 错误分类 → bootstrap CI |
 | `eval/record.py` | 往 `results/experiments.csv` 追加一行（27 字段统一台账） |
-| `generate/validator.py` | 生成数据校验器（定位歧义、重叠、抄袭、句长、负样本判定），含 8 个自检用例 |
+| `generate/validator.py` | **第二阶段**项目级检查（句长 20–30、实体数 ≤3、抄种子与 8-gram、跨批重复、无实体句比例）；格式与偏移由 `prompts/templates/convert_validate.py` 负责 |
 | `train/train_arm.py` | **通用微调入口**（E1/E2/E3 共用），产出 checkpoint + `train_config.json` |
 | `train/smoke_finetune.py` | Python 3.14 微调可行性冒烟测试（A1 用，2 步） |
 | `smoke_test_e0.py` | 环境冒烟：加载权重 + 20 句零样本推理 |
 
-### 3.5 `prompts/`
+### 3.5 `prompts/` — 生成用 Prompt
 
-| 文件 | 内容 |
+| 路径 | 内容 |
 |---|---|
-| `e2_plain_v1.md` | E2 普通生成的 Prompt v1：每批 9 空 + 11 含实体、句长 20–30、**要求模型只输出实体文本不输出下标**（下标由校验器计算） |
+| `templates/` | **当前使用的模板集**：8 个 stage（E2 两个 + E3 六个）+ `prepare_prompt.py`（占位符注入）+ `convert_validate.py`（格式与偏移校验）+ `data/{label_schema.json, seeds_20.json}` |
+| `E2_E3_Prompt_模板版.zip` | 用户提供的原始压缩包（归档，不再使用） |
+| `e2_plain_v1.md` | 最早的自制 Prompt v1（**已被 `templates/` 取代**，保留作设计演进记录） |
+
+**8 个 stage 一览：**
+
+| stage | 用途 | 每批 | 校验模式 |
+|---|---|---:|---|
+| `e2_generation` | E2 含实体 | 11 | `--expect entity` |
+| `e2_negative` | E2 无实体 | 9 | `--expect none` |
+| `e3_guidance` | E3 第 1 步：初始指导 | — | 产物供下一步 |
+| `e3_refiner` | E3 第 2 步：审查优化指导 | — | 同上 |
+| `e3_generation` | E3 含实体 | 11 | `--expect entity` |
+| `e3_negative` | E3 无实体（沿用同一 refined guidance） | 9 | `--expect none` |
+| `e3_calibrator` | E3 校准含实体批 | — | `--expect entity` |
+| `e3_calibrator_negative` | E3 校准无实体批 | — | `--expect none` |
+
+详见 `prompts/templates/README.md`。
 
 ### 3.6 `results/` — 成果
 
@@ -236,9 +255,19 @@ data/pt_bosque/{train,dev,test}.jsonl ──► data/pt_bosque/split_manifest.*�
       │                                        │
       │                                        └── src/data/make_seeds.py ──► seeds_20.jsonl
       │                                                                          │
-      │                                                          prompts/e2_plain_v1.md
+      │                                    prompts/templates/（8 个 stage，注入种子与标签规范）
       │                                                                          │
-      │                                                              （生成 E2/E3 数据）
+      │                          ┌───────────────────────┴───────────────────────┐
+      │                          ▼                                               ▼
+      │              含实体批（11 条/批）                              无实体批（9 条/批）
+      │              --expect entity                                     --expect none
+      │                          └───────────────────────┬───────────────────────┘
+      │                                                  ▼
+      │                                 convert_validate.py（格式与偏移）
+      │                                                  ▼
+      │                                 src/generate/validator.py（项目规范）
+      │                                                  ▼
+      │                                        E2 / E3 各 300 条（165 + 135）
       ▼
 src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<seed>\final
                                           │
@@ -278,10 +307,38 @@ src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<see
 | **训练报 `PermissionError [WinError 5]`** | 受限沙箱禁止 DataLoader 建命名管道，训练必须用完整权限；**评测在受限模式可跑** |
 | 沙箱不能执行 `.ps1` | `ConstrainedLanguage` 限制，会话内改用内联 tee |
 | `datasets` 5.0.1 不支持脚本型数据集 | UNER 改走 GitHub 原始 iob2 |
+| 密钥泄露 | 见第八节 |
 
 ---
 
-## 七、当前关键数字
+## 八、密钥与凭证
+
+**原则：API key 不进仓库、不进日志、不进对话。**
+
+| 方式 | 做法 | 安全性 |
+|---|---|---|
+| **A（推荐）** | 用户自己设系统环境变量 `DEEPSEEK_API_KEY`；代码只读 `os.environ`，只确认存在与长度，绝不打印值 | 零暴露 |
+| B | 放在工作区外的文件（如 `D:\pt_ner_work\.secrets\deepseek.key`），代码读该路径 | 明文落盘，但不进 git/日志 |
+| C | 直接把 key 发给 AI | key 进入会话存档（`~/.dsh/sessions/`）与模型上下文；若使用，须设消费上限并在用完后吊销 |
+
+**硬性禁止：**
+
+- 把 key 写进仓库内任何文件（`.env`、config、脚本）——一旦提交会永久留在 git 历史；
+- 在终端打印完整 key ——每次命令输出都会 tee 到 `logs/`；
+- 复用登录账号的主凭证——应使用独立、限额、可随时吊销的 key。
+
+`.gitignore` 已兜底忽略 `.env`、`.secrets/`、`*.key`。
+
+---
+
+## 九、文档维护约定
+
+- **README 由 AI 维护**：每次结构性改动（新增/删除文件、目录变化、约定变更、结论更新）后自动同步本文件，无需逐次确认。
+- 文档分工：`README.md`（全局导航）→ `docs/specs/`（实现依据）→ `docs/runs/`（单次实验快照）→ `docs/logs/`（任务级变更摘要）→ `docs/TODO.md`（未完成与待决策）。
+
+---
+
+## 十、当前关键数字
 
 | Arm | 阈值 | Micro-F1 | PER | ORG | LOC | 95% CI |
 |---|---:|---:|---:|---:|---:|---|
