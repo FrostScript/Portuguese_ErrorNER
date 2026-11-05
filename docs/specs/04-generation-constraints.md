@@ -59,7 +59,8 @@
 | 项 | 值 |
 |---|---|
 | 生成模型 | **DeepSeek Flash**（固定版本，全程不换；换模型则整批数据作废） |
-| 模板集 | `prompts/templates/`（你提供的模板版，5 个模板 + 新增 1 个无实体变体） |
+| 模板集 | `prompts/templates/`（用户提供的模板版 + 3 个无实体变体，共 8 个 stage） |
+| **E2 与 E3 共用同一套模板** | 差别只在 E3 多 guidance → refiner 两个前置步骤 |
 | 模板机制 | 占位符 `{LABEL_SCHEMA}` `{SEED_EXAMPLES}` `{N}` `{BATCH_ID}`（E3 另有三个），由 `prepare_prompt.py` 运行时注入，不预填 |
 | 输入示例 | `prompts/templates/data/seeds_20.json`（与 `data/curated/seeds_20.jsonl` 同一批 20 条，**已核实 20/20 一致**） |
 | 每批结构 | 20 条 = 11 含实体（`e2_generation`）+ 9 无实体（`e2_negative`），**两次独立请求** |
@@ -77,5 +78,20 @@
 | ② 项目规范 | `src/generate/validator.py` | 句长 20–30、实体数 ≤3、抄种子与 8-gram、跨批重复、无实体句比例统计 |
 
 `convert_validate.py` 新增 `--expect {auto,entity,none}`：含实体批次用 `entity`，无实体批次用 `none`；不指定时沿用原严格规则（必须有实体）。**一次调用只能处理同类批次**，混批会被整批拒绝。
+
+### 6.2 八个 stage 与各自的校验模式
+
+| stage | 用在哪 | 条数/批 | 校验模式 |
+|---|---|---:|---|
+| `e2_generation` | E2 含实体 | 11 | `--expect entity` |
+| `e2_negative` | E2 无实体 | 9 | `--expect none` |
+| `e3_guidance` | E3 第 1 步：初始指导 | — | 人工/后续步骤使用 |
+| `e3_refiner` | E3 第 2 步：审查优化指导 | — | 同上 |
+| `e3_generation` | E3 含实体 | 11 | `--expect entity` |
+| `e3_negative` | E3 无实体（沿用同一 refined guidance） | 9 | `--expect none` |
+| `e3_calibrator` | E3 校准含实体批 | — | `--expect entity` |
+| `e3_calibrator_negative` | E3 校准无实体批 | — | `--expect none` |
+
+E3 的无实体批次切在 `e3_generation` 之后、沿用同一份 refined guidance，保证两类句子的语体与主题分布一致。
 
 **实体种子来源：** 不另建实体清单。20 条种子自带的 45 个实体（PER 17 / ORG 18 / LOC 10）即 Prompt 的实体示例来源，可追溯至 UNER `pt_bosque` train。

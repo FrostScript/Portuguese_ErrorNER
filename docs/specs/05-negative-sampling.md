@@ -34,12 +34,16 @@ E2 与 E3 各自 **300 条合成句**，其中：
 
 > **实现修订（2026-11-04）**：`prompts/templates/` 的模板集要求"每条至少一个实体"，与无实体句直接冲突。因此实际执行改为**每批拆成两次请求**，但仍在同一批次轮次内产出两类，不改变"不删样本"的原则：
 >
-> | 请求 | 模板 | 条数 | 校验模式 |
-> |---|---|---:|---|
-> | 含实体句 | `e2_generation.txt` | 11 | `convert_validate.py --expect entity` |
-> | 无实体句 | `e2_negative.txt`（新增） | 9 | `convert_validate.py --expect none` |
+> | 组 | 请求 | 模板 | 条数 | 校验模式 |
+> |---|---|---|---:|---|
+> | E2 | 含实体句 | `e2_generation.txt` | 11 | `--expect entity` |
+> | E2 | 无实体句 | `e2_negative.txt` | 9 | `--expect none` |
+> | E3 | 含实体句 | `e3_generation.txt` | 11 | `--expect entity` |
+> | E3 | 无实体句 | `e3_negative.txt` | 9 | `--expect none` |
 >
-> 共 15 批 → 165 + 135 = 300 条。批号用不同号段（`e2_001…` / `e2_101…`）避免 ID 冲突。
+> 共 15 批 → 每组 165 + 135 = 300 条。批号用不同号段（`e2_001…` / `e2_101…`、`e3_001…` / `e3_101…`）避免 ID 冲突。
+>
+> **E3 的无实体批次沿用同一份 refined guidance**，确保两类句子语体与主题分布一致；E3 的校准步骤对应使用 `e3_calibrator` / `e3_calibrator_negative`。
 
 **明确禁止的两种做法：**
 

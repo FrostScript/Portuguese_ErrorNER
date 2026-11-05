@@ -595,3 +595,38 @@ cd ..\..
 1. 仍缺 DeepSeek Flash 客户端（D16-b，需 API key）、成本台账（D16）、模板化度量剩余三项（D14）。
 2. `prepare_prompt.py` 不校验渲染结果（例如 `{N}` 未替换时不会报错），靠人工核对；已实测本次无残留。
 3. `label_schema.json` 的规则是"依据种子整理的工作规则，尚非官方规范"，与 `pt_bosque` 的 UNER gold 可能存在口径差异，需在人工抽检时留意。
+
+## 任务 17 — 2026-11-04 E2 与 E3 统一使用模板集（补齐 E3 无实体路径）
+
+### 做了什么
+确认 E2 与 E3 都走 `prompts/templates/` 同一套模板；E3 原模板同样要求"每条至少一个实体"，因此补齐三个 E3 变体并全部实测渲染。
+
+### 关键数据
+- 新增 3 个模板：`e3_negative.txt`（无实体生成，沿用同一份 refined guidance）、`e3_calibrator_negative.txt`（AC 校准无实体批）。加上原有 5 个与 E2 的 `e2_negative.txt`，共 **8 个 stage**。
+- `prepare_prompt.py` 的 choices 已扩到 8 个 stage。
+- **八个 stage 全部渲染通过**，占位符 0 残留：e2_generation 7,843 / e2_negative 7,916 / e3_guidance 7,952 / e3_refiner 8,104 / e3_generation 7,979 / e3_negative 8,079 / e3_calibrator 8,307 / e3_calibrator_negative 7,895 字节。
+- **E3 校准输出端到端**：模拟 keep/revise/reject 三条 → `convert_validate --expect none` 通过 2 条、校准拒绝 1 条；项目级检查 accepted 2 / rejected 0 / no_entity_ratio 1.0。
+- 反例仍正确：含实体批错用 `--expect none` → 整批拒绝"本批次要求无实体，但给出了实体"。
+- E2/E3 的批次号段：`e2_001…` / `e2_101…`、`e3_001…` / `e3_101…`；两类各 15 批，最终各自 165 + 135 = 300 条。
+
+### 变更文件
+- 新建：`prompts/templates/prompts/e3_negative.txt`、`prompts/templates/prompts/e3_calibrator_negative.txt`
+- 修改：`prompts/templates/prepare_prompt.py`（choices 扩到 8 个）
+- 修改：`prompts/templates/README.md`（八个 stage 总表 + E2/E3 完整流程 + E3 双路径）
+- 修改：`docs/specs/04-generation-constraints.md`（§6.1 增加"E2/E3 共用模板"，新增 §6.2 八 stage 与校验模式表）
+- 修改：`docs/specs/05-negative-sampling.md` §2（表格扩为 E2/E3 四条请求）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER\prompts\templates"
+$env:PYTHONIOENCODING="utf-8"
+$py = "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe"
+& $py prepare_prompt.py e3_negative --refined refined_guidance.json --batch e3_101 --n 9 --out step3b.txt
+Select-String -Path step3b.txt -Pattern "\{[A-Z_]+\}"        # 应无输出
+& $py convert_validate.py e3_neg_calibrated.jsonl out.jsonl --expect none
+```
+
+### 遗留问题
+1. E3 的 guidance / refiner 两步产物（JSON）尚无 schema 校验，目前靠人工看；建议在客户端里加一次结构检查。
+2. 仍缺 DeepSeek Flash 客户端（D16-b）、成本台账（D16）、模板化度量剩余三项（D14）——都要 API key。
+3. `prompts/` 下仍有两份模板副本（用户原始解压的 `E2_E3_Prompt_模板版/` 与 `templates/`），未清理。
