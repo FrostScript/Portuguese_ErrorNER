@@ -734,3 +734,32 @@ Select-String -Path r.txt -Pattern "17 and 30 words|1 and 5 entities|e2_001_001|
 1. 种子未重选（按决策放宽了实体上界而非换种子）；若后续抽检发现 4–5 实体的样本质量差，可考虑 `seeds_20_v2`。
 2. 仍缺 DeepSeek 客户端（D16-b）、成本台账（D16）、模板化度量三项（D14）。
 3. `label_schema.json` 的规则仍是工作规范而非官方规范，抽检时需区分口径差异与生成错误。
+
+## 任务 21 — 2026-11-04 确认种子注入情况 + 记录无实体批次风险
+
+### 做了什么
+用户询问 E2 Prompt 是否纳入 20 条真实数据。核实后确认**已全部注入**，同时发现一处不对称，按用户决定"不改模板、试产后再评估"记录为闸门检查项。
+
+### 关键数据
+- **20/20 全部注入**：渲染后 `e2_generation` 的 `Real Examples:` 行（4,660 字符）包含全部 20 条种子原文，逐条文本匹配命中 20/20。
+- 注入字段：每条只有 `text` + `entities[{text, label}]`，**偏移已剥掉**（上一轮改造）。
+- 注入方式：**每批都全量注入 20 条**，不是分批轮换 → 30 次调用 × 4,660 字符 ≈ 14 万字符（约 35k token）种子注入量，成本可接受。
+- **发现的不对称**：`seeds_20` 的 20 条全部含实体（选出时要求必须含实体，以示范标注格式），因此 `e2_negative` / `e3_negative` 只能在"看着 20 个含实体例子"的前提下产出零实体句，缺真实范例锚定语体。
+- 用户决策：**暂不改模板**，留 G4 试产人工评估。已把三项判据写进 `specs/04` §5.1 与 TODO 的 G4 条目：① 不是"挖空"残缺句；② 语体与含实体批一致；③ 不空泛。任一不过再补 3 条真实无实体范例。
+
+### 变更文件
+- 修改：`docs/specs/04-generation-constraints.md`（新增 §5.1 已知风险与三项判据）
+- 修改：`docs/TODO.md`（G4 条目补"必须额外检查"三项）
+- 修改：`docs/logs/project_log.md`（本节）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" -c "import json;p=open('D:/pt_ner_work/tmp/pos_v3.txt',encoding='utf-8').read();s=[json.loads(l) for l in open('data/curated/seeds_20.jsonl',encoding='utf-8')];print('命中', sum(1 for x in s if x['text'] in p), '/', len(s))"
+git log --oneline -1
+```
+
+### 遗留问题
+1. 无实体批次缺范例的风险未消除，只是延后到试产验证；若试产发现语体漂移，需加 `{NO_ENTITY_EXAMPLES}` 占位符并改两个 negative 模板。
+2. 生成链路仍缺 DeepSeek 客户端（D16-b）、成本台账（D16）、模板化度量三项（D14）。
