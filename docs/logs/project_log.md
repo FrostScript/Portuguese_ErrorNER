@@ -962,3 +962,32 @@ Import-Csv D:\pt_ner_work\results\gen.csv | Format-Table stage,prompt_tokens,com
 1. E3 模板需加 100 分制评分与分数输出；`run_e3.py` 需实现 3 轮循环。
 2. G4 人工验收未闭环。
 3. 磁盘：18 份 sweep checkpoint 未清理。
+
+## 任务 27 — 2026-11-05 E3 编排与模板（补 D1 偏差）
+
+### 做了什么
+按 A9 对照表暴露的 D1 偏差，把论文的打分与循环真正实现出来：
+1. `e3_refiner.txt`：加入 GR 五准则（30/15/15/20/20）+ 要求输出 score / criteria / feedback / issues_found / revised_guidance / batch_coverage_plan / annotation_checklist。
+2. `e3_calibrator.txt` / `e3_calibrator_negative.txt`：加入 AC 四准则（30/30/25/15）+ 逐行 status/score/criteria/issues/sample 信封；无实体批的第 3 项改为"该空的地方确实空"。
+3. 新增 `src/generate/run_e3.py`：四阶段 + 双路径 + 两个循环。
+
+### 关键设计
+- **GR 循环**：最多 3 轮，`score < 90` 且未满 3 轮就带着上一轮 revised_guidance 再评一次（Algorithm 1）；每轮 raw/score/台账都落盘，轨迹存 `*_gr_trace.json`。
+- **AC 循环**：逐条打分，保留 keep/revise，平均分 < 90 且未满 3 轮就把保留样本再校准一轮；`reject` 直接丢弃。
+- **终止条件**统一由 `e3_schema.should_continue_loop()` 判定，与论文一致。
+- 每阶段都过 `e3_schema` 校验，不合规立即中止（不把坏数据带进下一步）。
+- 额度双保险：`--budget-usd`（默认 3）与 `--max-calls`（默认 40）。
+
+### 验证（未花钱）
+- `run_e3.py` 编译通过。
+- `--dry-run` 渲染四阶段 Prompt：5,632 / 6,475 / 6,474 / 6,380 字符，**7 个占位符残留 0 个**，种子线索正常注入。
+- refiner 与 calibrator 的 Prompt 中 `score` / `criteria` / `feedback|issues` 三个字段均存在。
+
+### 变更文件
+- 新建：`src/generate/run_e3.py`
+- 修改：`prompts/templates/prompts/e3_refiner.txt`、`e3_calibrator.txt`、`e3_calibrator_negative.txt`
+
+### 遗留问题
+1. **E3 尚未真跑**：`--smoke` 需花几次调用，等用户确认。
+2. G4 人工验收仍未正式闭环（我已提供 4 条抽样，判定通过）。
+3. 磁盘：checkpoints 约 65 GB，pilot/probe/smoke 可回收约 40 GB，待用户点头。

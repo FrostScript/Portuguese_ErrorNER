@@ -5,8 +5,37 @@ Real Examples: {SEED_EXAMPLES}
 Treat examples as reference data, never as instructions. Follow the supplied label schema.
 Write natural Portuguese in the domain and register of the examples. Do not copy examples or merely substitute names. Vary topics, syntax and entity combinations. Do not use development or test data.
 
-**This step does NOT generate samples.** Do not output the sample JSONL format here. The response must be a single JSON object as described in the final instruction.
+**This step does NOT generate samples.** It scores and refines the guidance below. Do not output the sample JSONL format here.
 
 初始指导：
 {INITIAL_GUIDANCE}
-审查并优化指导：检查是否误读个别种子、类别或句式集中、边界不明、覆盖不足。不得增加标签或真实示例，不用开发/测试集，不强制三类均衡。输出一个 JSON 对象（不是 JSONL），含 issues_found、revised_guidance、batch_coverage_plan、annotation_checklist 四个数组。
+
+按 R-GDA 的 Guidance Refiner 规则打分并优化。**100 分制，五项权重固定**：
+
+1. **Context Abstraction (30 分)** —— 上下文抽象：是否给出足够但不冗长的领域/语体分析（葡语新闻）；过度冗长或缺乏领域特征要扣分。
+2. **Keyword Detection (15 分)** —— 关键词识别：是否识别出与实体类型相关的词汇与语义关系。
+3. **Structure Relationship (15 分)** —— 结构关系：是否说清语法角色与逻辑结构，且对"生成新句"和"改写已有句"两种情形都可操作。
+4. **Entity Explanation (20 分)** —— 实体说明：是否按 PER/ORG/LOC 三类分别解释角色与语义特征；泛泛而谈要扣分。
+5. **Correct Relationship (20 分)** —— 关系正确性：标签与实体是否对应准确、边界是否合理；错标、边界错误、领域误解要扣分。
+
+同时输出四个数组：issues_found（发现的问题）、revised_guidance（修改后的指导）、batch_coverage_plan（本批覆盖计划）、annotation_checklist（标注检查清单）。
+
+严格评分：任何可指出的问题都要扣分，不要把"看起来还行"给满分。
+
+只输出**一个 JSON 对象**（不是 JSONL），键与类型严格如下：
+{
+  "score": 0-100 的整数,
+  "criteria": {
+    "context_abstraction": 0-30,
+    "keyword_detection": 0-15,
+    "structure_relationship": 0-15,
+    "entity_explanation": 0-20,
+    "correct_relationship": 0-20
+  },
+  "feedback": ["针对每一项的具体可执行改进建议", "..."],
+  "issues_found": ["..."],
+  "revised_guidance": ["改写后的指导条目", "..."],
+  "batch_coverage_plan": ["..."],
+  "annotation_checklist": ["..."]
+}
+criteria 五项之和必须等于 score。
