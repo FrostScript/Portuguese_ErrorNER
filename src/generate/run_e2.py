@@ -164,4 +164,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from src.common import runlog
+
+    with runlog.capture("run_e2"):
+        raise SystemExit(main())

@@ -938,3 +938,27 @@ Import-Csv D:\pt_ner_work\results\gen.csv | Format-Table stage,prompt_tokens,com
 1. 磁盘：18 份 sweep checkpoint + 先前若干份，D 盘占用需清理（旧的 E1/E2 @500 单份与 probe 可删）。
 2. E3 仍未跑；`run_e3.py` 未写。
 3. 主表口径已改，`results/E1_E2_training_grid.md` 是新的成果文件，旧 `E0_zeroshot_dev.md` 需补一句"E0 无种子维度"。
+
+## 任务 26 — 2026-11-05 看板日志修复 + A9 对照表 + E3 schema 校验
+
+### 做了什么
+1. **修看板日志不更新**：定位到 `logs/` 自 11/4 12:24 后未再写入（改用后台任务后输出没 tee 到日志）。新增 `src/common/runlog.py`（Python 侧 tee + 登记 runs.jsonl），接入 `sweep_steps.py` / `run_e2.py`；看板新增「最近活动」面板显示各产物 mtime。
+2. **A9 / D15**：下载 R-GDA 论文 PDF（834 KB / 16 页），pypdf 提取全文，核对 §3.1–§3.3、Algorithm 1、Appendix A（Fig 7–9），产出 `docs/specs/10-rgda-adaptation.md`。
+3. **E3 schema 校验**：`src/generate/e3_schema.py`，覆盖 guidance / refiner / calibrator。
+4. **TODO 重排**：勾选 A7/A8/A9 与 schema 校验，清理重复条目，A11 改为步数网格口径。
+
+### 关键数据
+- 看板 `recent` 面板直接暴露问题：「最新运行日志 1509 分钟前」，其余产物均在 5 分钟内。
+- **R-GDA 闸门四项全部确认**：GR 100 分制 5 项（30/15/15/20/20）、AC 100 分制 4 项（30/30/25/15）、最多 **3 轮**、阈值 **90**。
+- **D1 偏差**：现有 `e3_refiner` / `e3_calibrator` 模板无打分无循环 → `run_e3.py` 必须补，否则降级命名。
+- schema 校验自测 6 例全过（含评分一致性与 Algorithm 1 循环判据 85@1→True / 85@3→False / 92@1→False）。
+- TODO 现状：未完成 18 / 已完成 35。
+
+### 变更文件
+- 新建：`src/common/runlog.py`、`src/generate/e3_schema.py`、`docs/specs/10-rgda-adaptation.md`
+- 修改：`tools/dashboard/{server.py,static/*}`、`src/train/sweep_steps.py`、`src/generate/run_e2.py`、`docs/TODO.md`
+
+### 遗留问题
+1. E3 模板需加 100 分制评分与分数输出；`run_e3.py` 需实现 3 轮循环。
+2. G4 人工验收未闭环。
+3. 磁盘：18 份 sweep checkpoint 未清理。

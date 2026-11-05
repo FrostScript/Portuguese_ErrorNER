@@ -35,6 +35,17 @@ async function getJSON(url) {
   return r.json();
 }
 
+function renderRecent(recent) {
+  const box = $("recent");
+  if (!recent) { box.innerHTML = ""; return; }
+  const rows = Object.entries(recent).map(([label, d]) => {
+    if (!d.mtime) return `<span class="ra"><b>${label}</b> <em>缺失</em></span>`;
+    const stale = d.age_minutes > 120;
+    return `<span class="ra"><b>${label}</b> ${d.mtime} <em class="${stale ? "err" : ""}">${d.age_minutes < 1 ? "刚刚" : d.age_minutes + " 分钟前"}</em></span>`;
+  });
+  box.innerHTML = rows.join("");
+}
+
 function renderRunning(state) {
   const box = $("running-box");
   const badge = $("status");
@@ -53,7 +64,7 @@ function renderRunning(state) {
   box.className = "running-box active";
   box.innerHTML = state.running
     .map(
-      (r) => `<div><b>${r.name}</b> <span class="err"></span>
+      (r) => `<div><b>${r.name}</b>
         <div class="row">
           <span><span class="k">开始</span> ${fmtTime(r.start)}</span>
           <span><span class="k">已运行</span> ${duration(r.start)}</span>
@@ -163,6 +174,7 @@ async function refresh() {
     $("clock").textContent = st.now;
     $("foot").textContent = `工作区 ${st.workspace}`;
     renderRunning(st);
+    renderRecent(st.recent);
     renderExperiments(st.experiments || []);
     renderDocs(st.run_docs || []);
     renderCheckpoints(st.checkpoints || []);

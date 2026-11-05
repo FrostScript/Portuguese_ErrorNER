@@ -98,4 +98,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    from src.common import runlog
+
+    with runlog.capture(f"sweep_{sys.argv[1] if len(sys.argv) > 1 else 'steps'}"):
+        raise SystemExit(main())

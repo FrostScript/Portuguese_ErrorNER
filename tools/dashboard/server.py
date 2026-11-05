@@ -167,19 +167,57 @@ def _list_run_docs() -> list[dict]:
     return docs
 
 
+def _recent_activity() -> dict:
+    """最近活动：把关键文件的 mtime 汇总，用于判断"页面显示的东西是不是新的"。
+
+    看板的日志面板只读 logs/*.log；若脚本没有 tee 到这里，面板会停在旧文件上。
+    这里显式给出各产物的最后更新时间，便于一眼看出是哪一环没写。
+    """
+    targets = {
+        "实验台账": RESULTS / "experiments.csv",
+        "生成台账": D_WORK / "results" / "gen.csv",
+        "项目日志": RUNS_DOC.parent / "logs" / "project_log.md",
+        "最新运行日志": None,
+        "最新 checkpoint": None,
+    }
+    logs = sorted(LOGS.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True) if LOGS.exists() else []
+    if logs:
+        targets["最新运行日志"] = logs[0]
+    ckpts = sorted((p for p in CHECKPOINTS.glob("*/*/train_config.json")), key=lambda p: p.stat().st_mtime, reverse=True) if CHECKPOINTS.exists() else []
+    if ckpts:
+        targets["最新 checkpoint"] = ckpts[0]
+
+    out = {}
+    now = datetime.now().timestamp()
+    for label, path in targets.items():
+        if path is None or not Path(path).exists():
+            out[label] = {"path": None, "mtime": None, "age_minutes": None}
+            continue
+        m = Path(path).stat().st_mtime
+        out[label] = {
+            "path": str(path),
+            "mtime": datetime.fromtimestamp(m).strftime("%Y-%m-%d %H:%M"),
+            "age_minutes": round((now - m) / 60, 1),
+        }
+    return out
+
+
 def state() -> dict:
     runs = _read_runs()
     return {
         "now": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "workspace": str(WORKSPACE),
+        "recent": _recent_activity(),
         "runs": runs[:30],
         "running": [r for r in runs if r.get("status") == "running"],
         "experiments": _read_experiments(),
         "checkpoints": _scan_checkpoints(),
         "run_docs": _list_run_docs(),
         "logs": sorted(
-            ({"name": p.name, "size": p.stat().st_size} for p in LOGS.glob("*.log")),
-            key=lambda x: x["size"],
+            ({"name": p.name, "size": p.stat().st_size,
+              "mtime": datetime.fromtimestamp(p.stat().st_mtime).strftime("%m-%d %H:%M")}
+             for p in LOGS.glob("*.log")),
+            key=lambda x: x["mtime"],
             reverse=True,
         )[:40],
     }
