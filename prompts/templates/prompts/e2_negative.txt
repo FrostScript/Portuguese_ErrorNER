@@ -9,7 +9,7 @@ Each line must be one JSON object:
 {"id":"{BATCH_ID}_001","text":"Portuguese sentence","entities":[]}
 
 Hard constraints (samples violating them are discarded by validation):
-- Each sentence must have between 17 and 30 words.
+- Length: **between 12 and 20 words, aiming for about 15 words**. These are short news items (briefs, notices, one-line reports) — much shorter than the entity-bearing batch, which is normal and required.
 - ids must be unique and sequential: {BATCH_ID}_001, {BATCH_ID}_002, ... up to {BATCH_ID}_{N}.
 
 CRITICAL for this batch: every sample must contain ZERO named entities.
@@ -18,4 +18,4 @@ CRITICAL for this batch: every sample must contain ZERO named entities.
 - Generic roles (o presidente, a empresa), dates, numbers, currencies and common nouns are allowed.
 - Do not write sentences that look like a named entity was removed: keep a complete grammatical subject and a coherent topic.
 
-根据共用规则与所提供的种子，生成 {N} 条**不含任何命名实体**的自然葡语句子，体裁与种子一致。批次编号 {BATCH_ID}。每句 17–30 个词。直接输出规定格式的恰好 {N} 行 JSONL，每行 entities 为空数组，id 依次为 {BATCH_ID}_001 至 {BATCH_ID}_0{N}。
+根据共用规则与所提供的种子，生成 {N} 条**不含任何命名实体**的短讯式葡语句子，体裁与种子一致。批次编号 {BATCH_ID}。每句 12–20 个词、平均约 15 个词（真实葡语新闻里无实体句本就比含实体句短得多）。直接输出规定格式的恰好 {N} 行 JSONL，每行 entities 为空数组，id 依次为 {BATCH_ID}_001 至 {BATCH_ID}_0{N}。

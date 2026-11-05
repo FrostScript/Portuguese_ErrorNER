@@ -67,18 +67,24 @@ def generate_one_batch(
     price_out: float = 0.0,
     extra: dict | None = None,
     dry_run: bool = False,
+    run_tag: str = "",
 ) -> dict:
-    """产一批：渲染 → 调用 → 解析 → 校验。返回统计 dict。"""
+    """产一批：渲染 → 调用 → 解析 → 校验。返回统计 dict。
+
+    `run_tag` 会拼进文件名，避免重跑时覆盖/复用上一轮的产物
+    （convert_validate 拒绝覆盖已存在的输出文件，旧文件若残留会被误读成新产出）。
+    """
     prompt = prepare_prompt.render(stage, batch=batch_id, n=n, **(extra or {}))
     out_dir.mkdir(parents=True, exist_ok=True)
-    tag = f"{arm}_{stage}_{batch_id}"
+    tag = f"{run_tag}_{arm}_{stage}_{batch_id}" if run_tag else f"{arm}_{stage}_{batch_id}"
 
-    comp = client.complete(prompt, tag=tag) if not dry_run else None
     if dry_run:
         prompt_path = out_dir / f"{tag}.prompt.txt"
         prompt_path.write_text(prompt, encoding="utf-8")
         return {"stage": stage, "batch_id": batch_id, "dry_run": True, "prompt_chars": len(prompt),
                 "prompt_path": str(prompt_path), "accepted": 0, "candidates": 0}
+
+    comp = client.complete(prompt, tag=tag)
 
     raw_path = out_dir / f"{tag}.raw.txt"
     raw_path.write_text(comp.text, encoding="utf-8")
@@ -151,10 +157,16 @@ def collect(
     price_in: float = 0.0,
     price_out: float = 0.0,
     extra: dict | None = None,
+    run_tag: str = "",
 ) -> dict:
-    """反复产批，直到凑够 target 条有效样本。返回汇总。"""
+    """反复产批，直到凑够 target 条有效样本。返回汇总。
+
+    `run_tag` 由调用方给定（通常是一次运行的时间戳），用于隔离不同轮次的产物文件；
+    为空时自动按当前时间生成，避免读到上一轮的 `.checked.jsonl`。
+    """
+    run_tag = run_tag or datetime.now().strftime("%H%M%S")
     accepted_rows: list[dict] = []
-    stats = {"calls": 0, "candidates": 0, "accepted": 0, "cost_usd": 0.0, "batches": []}
+    stats = {"calls": 0, "candidates": 0, "accepted": 0, "cost_usd": 0.0, "batches": [], "run_tag": run_tag}
     idx = 0
     while len(accepted_rows) < target and stats["calls"] < max_calls and stats["cost_usd"] < budget_usd:
         idx += 1
@@ -163,7 +175,7 @@ def collect(
             r = generate_one_batch(
                 client, stage=stage, batch_id=batch_id, n=per_batch, expect=expect,
                 out_dir=out_dir, arm=arm, ledger_path=ledger_path,
-                price_in=price_in, price_out=price_out, extra=extra,
+                price_in=price_in, price_out=price_out, extra=extra, run_tag=run_tag,
             )
         except Exception as exc:  # noqa: BLE001  截断/网络等：记一行失败，继续下一批
             stats["calls"] += 1
@@ -184,7 +196,7 @@ def collect(
         stats["candidates"] += r.get("candidates", 0)
         stats["cost_usd"] = round(stats["cost_usd"] + r.get("cost_usd", 0.0), 6)
         stats["batches"].append(r)
-        checked = out_dir / f"{arm}_{stage}_{batch_id}.checked.jsonl"
+        checked = out_dir / f"{run_tag}_{arm}_{stage}_{batch_id}.checked.jsonl"
         if checked.exists():
             rows = [json.loads(line) for line in checked.read_text(encoding="utf-8").splitlines() if line.strip()]
             accepted_rows.extend(rows)

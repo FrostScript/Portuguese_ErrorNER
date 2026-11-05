@@ -57,6 +57,8 @@ def main() -> int:
     ap.add_argument("--reasoning-effort", default="low", choices=["low", "medium", "high"],
                     help="推理强度。实测 high 时 thinking 吃 6.8k–7.4k token，正文常为空；low 降到约 3.4k")
     ap.add_argument("--out-dir", default=str(OUT_DIR))
+    ap.add_argument("--only", choices=["both", "pos", "neg"], default="both",
+                    help="只重跑某一侧（pos=含实体 / neg=无实体），另一侧保留已有产物")
     args = ap.parse_args()
 
     out_dir = Path(args.out_dir)
@@ -82,28 +84,48 @@ def main() -> int:
           f"max_tokens {client.max_tokens}，reasoning_effort {client.reasoning_effort}")
     print(f"目标：{target_pos} 含实体 + {target_neg} 无实体")
 
-    print("\n[1/2] 含实体批次")
-    pos = pipeline.collect(
-        client, stage="e2_generation", expect="entity", target=target_pos, per_batch=PER_BATCH_POS,
-        arm="E2", out_dir=out_dir, ledger_path=LEDGER, batch_prefix="e2_0",
-        max_calls=args.max_calls, budget_usd=args.budget_usd, price_in=args.price_in, price_out=args.price_out,
-    )
-    print("\n[2/2] 无实体批次")
-    neg = pipeline.collect(
-        client, stage="e2_negative", expect="none", target=target_neg, per_batch=PER_BATCH_NEG,
-        arm="E2", out_dir=out_dir, ledger_path=LEDGER, batch_prefix="e2_1",
-        max_calls=args.max_calls, budget_usd=args.budget_usd, price_in=args.price_in, price_out=args.price_out,
-    )
+    if args.only in ("both", "pos"):
+        print("\n[1/2] 含实体批次")
+        pos = pipeline.collect(
+            client, stage="e2_generation", expect="entity", target=target_pos, per_batch=PER_BATCH_POS,
+            arm="E2", out_dir=out_dir, ledger_path=LEDGER, batch_prefix="e2_2",
+            max_calls=args.max_calls, budget_usd=args.budget_usd, price_in=args.price_in, price_out=args.price_out,
+        )
+        p = pipeline.merge_write(pos["rows"], FINAL_POS)
+        print(f"含实体合并落盘：{p}（{len(pos['rows'])} 条），调用 {pos['calls']} 次")
+    else:
+        print("\n[1/2] 含实体批次：跳过（--only neg），保留已有 e2_pos.jsonl")
 
-    print(f"\n采集完成：含实体 {pos['accepted']} / 无实体 {neg['accepted']}；调用 {pos['calls'] + neg['calls']} 次；"
-          f"花费 ${pos['cost_usd'] + neg['cost_usd']:.4f}")
+    if args.only in ("both", "neg"):
+        print("\n[2/2] 无实体批次")
+        neg = pipeline.collect(
+            client, stage="e2_negative", expect="none", target=target_neg, per_batch=PER_BATCH_NEG,
+            arm="E2", out_dir=out_dir, ledger_path=LEDGER, batch_prefix="e2_1",
+            max_calls=args.max_calls, budget_usd=args.budget_usd, price_in=args.price_in, price_out=args.price_out,
+        )
+        n = pipeline.merge_write(neg["rows"], FINAL_NEG)
+        print(f"无实体合并落盘：{n}（{len(neg['rows'])} 条），调用 {neg['calls']} 次")
+    else:
+        print("\n[2/2] 无实体批次：跳过（--only pos），保留已有 e2_neg.jsonl")
 
-    if pos["accepted"] < target_pos or neg["accepted"] < target_neg:
-        print("⚠ 未凑够目标条数：先保留已产出的部分，可再跑一次续采（已产文件不会重复覆盖）")
+    # 合并成训练用文件（补 tokens / split，供 train_arm.py 直接使用）
+    # 注意：tokens 必须用「词 + 独立标点」切分，不能用 text.split()。
+    # 生成文本里标点紧贴单词（`Braga,`），若按空格切，实体结束位置会落在 token 中间，
+    # GLiNER 的词级映射会静默丢实体（实测曾丢掉 147/413 个）。
+    from src.generate.tokenize import tokenize
 
-    p = pipeline.merge_write(pos["rows"], FINAL_POS)
-    n = pipeline.merge_write(neg["rows"], FINAL_NEG)
-    print(f"合并落盘：{p}（{len(pos['rows'])} 条）、{n}（{len(neg['rows'])} 条）")
+    all_rows = []
+    for f in (FINAL_POS, FINAL_NEG):
+        for line in f.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            toks, _ = tokenize(r["text"])
+            all_rows.append({"id": r["id"], "doc_id": "synthetic_e2", "split": "synthetic",
+                             "tokens": toks, "text": r["text"], "entities": r["entities"]})
+    merged_path = WORKSPACE / "data" / "synthetic" / "e2" / "e2_300.jsonl"
+    merged_path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in all_rows), encoding="utf-8")
+    print(f"训练用合并：{merged_path}（{len(all_rows)} 条）")
 
     # 项目级检查（第二阶段）——直接调用模块，不起子进程
     from src.generate.validator import check_file
@@ -113,6 +135,22 @@ def main() -> int:
         r = check_file(path, seeds, expect)
         print(f"[项目检查-{label}] accepted {r['accepted']} / rejected {r['rejected']} / "
               f"no_entity_ratio {r['no_entity_ratio']} / per_class {r['per_class']}")
+
+    # 与 E1 的分布对照（密度与类别是关键对齐项）
+    e1 = [json.loads(l) for l in (WORKSPACE / "data" / "curated" / "real_300.jsonl").open(encoding="utf-8")]
+    def dist(rows):
+        ents = [len(r["entities"]) for r in rows if r["entities"]]
+        cls = {}
+        for r in rows:
+            for e in r["entities"]:
+                cls[e["label"]] = cls.get(e["label"], 0) + 1
+        return {"entities": sum(ents), "per_entity_sentence": round(sum(ents) / len(ents), 2) if ents else 0,
+                "classes": cls}
+    d_e2, d_e1 = dist(all_rows), dist(e1)
+    print(f"\n[对齐检查] E2 实体 {d_e2['entities']} / 每含实体句 {d_e2['per_entity_sentence']} / {d_e2['classes']}")
+    print(f"[对齐检查] E1 实体 {d_e1['entities']} / 每含实体句 {d_e1['per_entity_sentence']} / {d_e1['classes']}")
+    dev = (d_e2["entities"] - d_e1["entities"]) / d_e1["entities"] * 100
+    print(f"[对齐检查] 实体总量偏差 {dev:+.1f}%（specs/05 目标 ±5%）")
 
     res = metrics.report(FINAL_POS, FINAL_NEG)
     md = metrics.to_markdown(res)

@@ -107,26 +107,43 @@ def length_stats(records: list[dict]) -> dict:
 
 
 def compare_lengths(pos: list[dict], neg: list[dict]) -> dict:
-    """含实体批 vs 无实体批的长度分布对比。"""
+    """含实体批 vs 无实体批的长度对比。
+
+    判据（specs/04 §5）：**差异方向与幅度要和真实数据一致**，而不是"无显著差异"。
+        真实 E1：含实体 29.07 词 / 无实体 15.19 词 → 差 +13.9
+        全量 train：25.65 / 15.94 → 差 +9.7
+        合格区间：+4 至 +18 词，且含实体批必须更长
+    """
     a = [len(WORD_RE.findall(r["text"])) for r in pos]
     b = [len(WORD_RE.findall(r["text"])) for r in neg]
     res = {"pos": length_stats(pos), "neg": length_stats(neg)}
+    if not (a and b):
+        res["note"] = "缺一组样本，无法比较"
+        return res
+
+    delta = round(sum(a) / len(a) - sum(b) / len(b), 2)
+    res["delta_mean"] = delta
+    res["real_reference"] = {"e1_delta": 13.9, "train_delta": 9.7, "acceptable": [4, 18]}
+
     if len(a) >= 5 and len(b) >= 5:
         try:
             from scipy.stats import mannwhitneyu
 
             u, p = mannwhitneyu(a, b, alternative="two-sided")
             res["mannwhitney"] = {"U": round(float(u), 2), "p_value": round(float(p), 4)}
-            res["significant_at_0.05"] = bool(p < 0.05)
-            res["verdict"] = (
-                "两批长度分布存在显著差异，违反 specs/04 §5，需改 Prompt 或重采样"
-                if p < 0.05
-                else "两批长度分布无显著差异，符合 specs/04 §5"
-            )
         except ImportError:
-            res["note"] = "未安装 scipy，跳过显著性检验"
+            pass
+
+    if delta < 4:
+        res["verdict"] = (f"差幅 {delta:+.2f} 词偏小：无实体句被写得太长，与真实数据的 +9.7~+13.9 不一致，需调 Prompt")
+        res["pass"] = False
+    elif delta > 18:
+        res["verdict"] = f"差幅 {delta:+.2f} 词偏大，超出真实数据的 +9.7~+13.9 太多"
+        res["pass"] = False
     else:
-        res["note"] = "样本量不足（<5），跳过显著性检验"
+        res["verdict"] = (f"差幅 {delta:+.2f} 词，方向正确（含实体句更长），"
+                          f"落在真实参照 +9.7~+13.9 的合理邻域")
+        res["pass"] = True
     return res
 
 
@@ -182,16 +199,18 @@ def to_markdown(res: dict) -> str:
             lines += ["| 实体总数 | %s |" % r["entities"], "| 不同实体 | %s |" % r["distinct_entities"],
                       "| 来自种子实体 | %s |" % r["reused_from_seeds"], "| 实体复用率 | %s |" % r["reuse_rate"], ""]
     lc = res.get("length_comparison")
-    if lc:
+    if lc and "verdict" in lc:
         lines += ["## 长度分布对比", "", "| 批 | n | 均值 | 中位 | 最小 | 最大 | 标准差 |", "|---|---:|---:|---:|---:|---:|---:|"]
         for key in ("pos", "neg"):
             s = lc[key]
             lines.append(f"| {key} | {s['n']} | {s['mean']} | {s['median']} | {s['min']} | {s['max']} | {s['std']} |")
+        lines += ["", f"**差幅 {lc['delta_mean']:+.2f} 词**；真实参照 E1 +13.9 / train +9.7；合格区间 +4~+18"]
         if "mannwhitney" in lc:
             m = lc["mannwhitney"]
-            lines += ["", f"Mann-Whitney U = {m['U']}，p = {m['p_value']} → **{lc['verdict']}**"]
-        elif "note" in lc:
-            lines += ["", lc["note"]]
+            lines.append(f"（Mann-Whitney U = {m['U']}，p = {m['p_value']}，仅作参考）")
+        lines += ["", f"**{'通过' if lc.get('pass') else '不通过'}：{lc['verdict']}**"]
+    elif lc and "note" in lc:
+        lines += ["## 长度分布对比", "", lc["note"]]
     return "\n".join(lines) + "\n"
 
 

@@ -29,10 +29,15 @@ sys.path.insert(0, str(WORKSPACE))
 from src.common import env  # noqa: F401
 
 LABELS = {"PER", "ORG", "LOC"}
-# 句长按「空格切词」计（生成文本没有 UD 分词，只能用空格）。
-# 换算：空格词数 / UD token ≈ 0.861（种子实测），故 UD 20–30 对应空格 17–26，
-# 这里取 17–30 作为下界对齐种子最短句、上界留余量。
-MIN_TOKENS, MAX_TOKENS = 17, 30
+
+# 句长按「空格切词」计。**两类句子的长度区间不同**，因为真实数据就是这样：
+#   E1 真实 300 条：含实体句平均 29.07 词，无实体句平均 15.19 词（差 +13.9）
+#   全量 train：    含实体句 25.65 词，无实体句 15.94 词（差 +9.7）
+# 早期版本对两类用同一个 17–30 区间，把负样本强行拉长到 24 词，方向与真实数据相反。
+MIN_TOKENS_ENTITY, MAX_TOKENS_ENTITY = 20, 32
+MIN_TOKENS_NONE, MAX_TOKENS_NONE = 10, 22
+# 兼容旧调用：不给 expect 时用含实体区间
+MIN_TOKENS, MAX_TOKENS = MIN_TOKENS_ENTITY, MAX_TOKENS_ENTITY
 # E1 真实数据中含实体句的实体数分布为 1:70 / 2:44 / 3:26 / 4:11 / 5:7 / 6+:7，
 # 15% 的句子超过 3 个实体，因此上界取 5 而不是 3，避免合成数据系统性偏离 E1。
 MAX_ENTITIES = 5
@@ -53,15 +58,23 @@ def ngram_overlap(a: str, b: str, n: int = NGRAM) -> bool:
     return bool(ga & gb)
 
 
-def check_record(rec: dict, seeds_texts: list[str], seen_texts: set[str]) -> list[str]:
-    """返回问题列表；空列表表示通过。假定格式已由 convert_validate.py 校验。"""
+def check_record(rec: dict, seeds_texts: list[str], seen_texts: set[str], expect: str = "auto") -> list[str]:
+    """返回问题列表；空列表表示通过。假定格式已由 convert_validate.py 校验。
+
+    expect 决定句长区间：含实体句与无实体句用不同区间（真实数据本就相差 10–14 词）。
+    """
     issues: list[str] = []
     text = rec["text"]
     ents = rec["entities"]
 
+    has_ent = bool(ents)
+    if expect == "none" or (expect == "auto" and not has_ent):
+        lo, hi = MIN_TOKENS_NONE, MAX_TOKENS_NONE
+    else:
+        lo, hi = MIN_TOKENS_ENTITY, MAX_TOKENS_ENTITY
     toks = tokens_of(text)
-    if not (MIN_TOKENS <= len(toks) <= MAX_TOKENS):
-        issues.append(f"句长 {len(toks)} 不在 {MIN_TOKENS}-{MAX_TOKENS}")
+    if not (lo <= len(toks) <= hi):
+        issues.append(f"句长 {len(toks)} 不在 {lo}-{hi}（{'无实体' if (expect == 'none' or (expect == 'auto' and not has_ent)) else '含实体'}区间）")
 
     if len(ents) > MAX_ENTITIES:
         issues.append(f"实体数 {len(ents)} 超过上限 {MAX_ENTITIES}")
@@ -93,7 +106,7 @@ def check_file(path: Path, seeds_texts: list[str], expect: str = "auto") -> dict
     stats: Counter = Counter()
 
     for i, rec in enumerate(rows):
-        issues = check_record(rec, seeds_texts, seen)
+        issues = check_record(rec, seeds_texts, seen, expect)
         if expect == "entity" and not rec["entities"]:
             issues.append("要求含实体但 entities 为空")
         if expect == "none" and rec["entities"]:
@@ -126,33 +139,36 @@ def _selftest() -> int:
     seed = "Vera Lúcia Barbosa, 40, morreu em a última quarta presa por o cinto de segurança a o carro em que estava, que caiu em o rio Tietê."
     ok_text = ("O índice de preços ao consumidor subiu dois por cento no mês passado, "
                "segundo dados divulgados nesta terça feira pelo instituto de pesquisa nacional.")
+    short_text = ("O índice de preços subiu dois por cento no mês passado, segundo dados "
+                  "divulgados ontem pelo instituto nacional.")
     ok_ent = {"id": "b1", "text": ok_text,
               "entities": [{"start": 3, "end": 8, "text": ok_text[3:8], "label": "PER"}]}
     cases = [
-        ("合法-无实体", {"id": "b0", "text": ok_text, "entities": []}, [], "auto", True),
-        ("合法-含实体", ok_ent, [], "auto", True),
-        ("非法-太短", {"id": "b2", "text": "Curto demais.", "entities": []}, [], "auto", False),
-        ("非法-抄种子", {"id": "b3", "text": seed, "entities": []}, [seed], "auto", False),
+        ("合法-无实体(18词)", {"id": "b0", "text": short_text, "entities": []}, [], "none", True),
+        ("合法-含实体(24词)", ok_ent, [], "entity", True),
+        ("非法-无实体太长", {"id": "b6", "text": ok_text, "entities": []}, [], "none", False),
+        ("非法-太短", {"id": "b2", "text": "Curto demais.", "entities": []}, [], "none", False),
+        ("非法-抄种子", ok_ent, [ok_text], "entity", False),
         ("非法-实体数超限", {"id": "b4", "text": ok_text, "entities": [
             {"start": 0, "end": 1, "text": ok_text[0:1], "label": "PER"},
             {"start": 2, "end": 3, "text": ok_text[2:3], "label": "PER"},
             {"start": 4, "end": 5, "text": ok_text[4:5], "label": "PER"},
             {"start": 6, "end": 7, "text": ok_text[6:7], "label": "PER"},
             {"start": 8, "end": 9, "text": ok_text[8:9], "label": "PER"},
-            {"start": 10, "end": 11, "text": ok_text[10:11], "label": "PER"}]}, [], "auto", False),
+            {"start": 10, "end": 11, "text": ok_text[10:11], "label": "PER"}]}, [], "entity", False),
         ("非法-区间不符", {"id": "b5", "text": ok_text,
-                          "entities": [{"start": 0, "end": 3, "text": "ZZZ", "label": "PER"}]}, [], "auto", False),
+                          "entities": [{"start": 0, "end": 3, "text": "ZZZ", "label": "PER"}]}, [], "entity", False),
     ]
     bad = 0
-    print(f"{'用例':<18} {'期望':<7} {'实际':<7} 问题")
+    print(f"{'用例':<20} {'期望':<7} {'实际':<7} 问题")
     for name, rec, seeds, expect, want_ok in cases:
-        issues = check_record(rec, seeds, set())
+        issues = check_record(rec, seeds, set(), expect)
         if expect == "entity" and not rec["entities"]:
             issues.append("要求含实体但 entities 为空")
         got_ok = not issues
         mark = "✓" if got_ok == want_ok else "✗"
         bad += 0 if got_ok == want_ok else 1
-        print(f"{name:<18} {'ok' if want_ok else 'reject':<7} {'ok' if got_ok else 'reject':<7} {mark} {'; '.join(issues)[:60]}")
+        print(f"{name:<20} {'ok' if want_ok else 'reject':<7} {'ok' if got_ok else 'reject':<7} {mark} {'; '.join(issues)[:60]}")
     print(f"\n自检：{'全部通过' if bad == 0 else f'{bad} 项不符合预期'}")
     return 0 if bad == 0 else 1
 

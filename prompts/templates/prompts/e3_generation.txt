@@ -10,11 +10,12 @@ Each line must be one JSON object:
 
 Hard constraints (samples violating them are discarded by validation):
 - Each sentence must have between 17 and 30 words.
-- Each sample must contain between 1 and 5 entities, annotated completely.
+- Entity count per sample: **1 to 3 in most samples**. At most 20% of the samples may have 4 entities, and never more than 5. Annotate every target entity completely.
+- Entity types must be spread across PER, ORG and LOC. Do not let one type dominate.
 - ids must be unique and sequential: {BATCH_ID}_001, {BATCH_ID}_002, ... up to {BATCH_ID}_{N}.
 
 occurrence is the one-based, non-overlapping occurrence of the exact substring, counted left to right; record repeated mentions separately and order entities by position. Do not output character offsets; downstream code computes [start,end). Do not hardcode class proportions.
 
 优化指导：
 {REFINED_GUIDANCE}
-依照共用规则与优化指导生成 {N} 条新样本。批次编号 {BATCH_ID}。每句 17–30 个词，每句 1–5 个实体。覆盖多种主题、实体组合和句法，避免模板重复。只输出规定格式的恰好 {N} 行 JSONL，id 依次为 {BATCH_ID}_001 至 {BATCH_ID}_0{N}。
+依照共用规则与优化指导生成 {N} 条新样本。批次编号 {BATCH_ID}。每句 17–30 个词；每句多数为 1–3 个实体，至多 20% 的句子可有 4 个，不得超过 5 个；PER、ORG、LOC 三类大致均衡。覆盖多种主题、实体组合和句法，避免模板重复。只输出规定格式的恰好 {N} 行 JSONL，id 依次为 {BATCH_ID}_001 至 {BATCH_ID}_0{N}。
