@@ -661,3 +661,37 @@ Select-String -Path README.md -Pattern "^## "
 ### 遗留问题
 1. **API key 仍未提供**，生成链路（D16-b 客户端、D16 成本台账、D14 剩余度量）无法开工。推荐方式 A：用户自行设 `DEEPSEEK_API_KEY` 环境变量，我只读不打印。
 2. 用户询问"直接提供 key 是否有安全问题"，已在 README §八给出三级方案与硬性禁止项。
+
+## 任务 19 — 2026-11-04 建立方法 B 的密钥目录与预检脚本
+
+### 做了什么
+1. 在工作区外建立 `D:\pt_ner_work\.secrets\`，放入占位 `deepseek.key`（内容 `sk-REPLACE_ME`）与使用说明 `README.md`。
+2. 新增 `src/generate/preflight.py`：读 key（环境变量优先，其次密钥文件），只报来源/长度/格式，**从不打印明文**；`--ping` 可发一次最小请求验证额度。
+3. `configs/paths.yaml` 增加 `secrets` 与 `llm` 两节（密钥路径、模型、base_url、温度）。
+4. README 第八节改写为"本项目采用方式 B"，并列出验证方式与退出码。
+
+### 关键数据
+- 密钥文件：`D:\pt_ner_work\.secrets\deepseek.key`，13 字节，当前为占位符。
+- preflight 实测（占位符状态）：来源 `文件 D:\pt_ner_work\.secrets\deepseek.key`、长度 13、前缀判定通过、**正确报出"仍是占位符"与"长度不足"两条问题，退出码 3**。
+- preflight 退出码约定：0 通过 / 2 未找到 / 3 格式有问题 / 4 连通失败。
+- 踩坑记录：`write` 工具对该工作区外路径报 `EISDIR`（其"临时目录 + 改名"的写盘方式在该路径不适用），改用 shell `Set-Content` 写入成功。
+
+### 变更文件
+- 新建（工作区外）：`D:\pt_ner_work\.secrets\deepseek.key`、`D:\pt_ner_work\.secrets\README.md`
+- 新建：`src/generate/preflight.py`
+- 修改：`configs/paths.yaml`（secrets / llm 两节）
+- 修改：`README.md` §八（改为方式 B，附验证方式与退出码）
+- 修改：`docs/TODO.md` C4（记录密钥方式 B 与文件路径）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" src\generate\preflight.py
+# 填入真实 key 后应返回 0；加 --ping 再验证额度和网络
+```
+
+### 遗留问题
+1. 用户填入 key 后需跑一次 `preflight.py`（建议加 `--ping`）确认可用。
+2. key 就绪后待做：DeepSeek Flash 客户端（D16-b）、成本台账（D16）、模板化度量剩余三项（D14）、E2 试产（G4 闸门）。
+3. `configs/paths.yaml` 里新增的 `llm.base_url` 默认写的是 `https://api.deepseek.com`，首次实调时需确认路径与模型名 `deepseek-flash` 是否正确。

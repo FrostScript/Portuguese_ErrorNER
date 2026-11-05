@@ -313,13 +313,32 @@ src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<see
 
 ## 八、密钥与凭证
 
-**原则：API key 不进仓库、不进日志、不进对话。**
+**原则：API key 不进仓库、不进日志、不进对话。本项目采用方式 B。**
 
-| 方式 | 做法 | 安全性 |
+| 方式 | 做法 | 采用 |
 |---|---|---|
-| **A（推荐）** | 用户自己设系统环境变量 `DEEPSEEK_API_KEY`；代码只读 `os.environ`，只确认存在与长度，绝不打印值 | 零暴露 |
-| B | 放在工作区外的文件（如 `D:\pt_ner_work\.secrets\deepseek.key`），代码读该路径 | 明文落盘，但不进 git/日志 |
-| C | 直接把 key 发给 AI | key 进入会话存档（`~/.dsh/sessions/`）与模型上下文；若使用，须设消费上限并在用完后吊销 |
+| A | 系统环境变量 `DEEPSEEK_API_KEY` | 备用（读取优先级最高） |
+| **B** | **仓库外文件 `D:\pt_ner_work\.secrets\deepseek.key`** | ✅ **本项目采用** |
+| C | 直接把 key 发给 AI | ✗ 不采用（会进入会话存档与模型上下文） |
+
+**当前状态：** 目录与占位文件已建好，等待填入真实 key。
+
+```
+D:\pt_ner_work\.secrets\
+├── deepseek.key    ← 单行，只放 key 本身（当前是 sk-REPLACE_ME）
+└── README.md       ← 放置与验证说明
+```
+
+**验证方式**（不打印 key 明文，只报来源/长度/格式）：
+
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER"
+$env:PYTHONIOENCODING="utf-8"
+& "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe" src\generate\preflight.py
+# 加 --ping 会额外发一次最小请求验证额度与网络
+```
+
+退出码：`0` 通过 / `2` 未找到 / `3` 格式有问题（占位符、太短、非 sk- 开头、含空白）/ `4` 连通失败。
 
 **硬性禁止：**
 
@@ -327,7 +346,7 @@ src/train/train_arm.py（S=500）──► D:\pt_ner_work\checkpoints\<arm>\<see
 - 在终端打印完整 key ——每次命令输出都会 tee 到 `logs/`；
 - 复用登录账号的主凭证——应使用独立、限额、可随时吊销的 key。
 
-`.gitignore` 已兜底忽略 `.env`、`.secrets/`、`*.key`。
+`.gitignore` 已兜底忽略 `.env`、`.secrets/`、`*.key`、`*.pem`、`credentials*.json`；但密钥文件本身放在工作区外，不依赖这条兜底。
 
 ---
 
