@@ -548,3 +548,50 @@ Get-Content data\curated\seeds_20_stats.md -TotalCount 20
 1. 生成仍缺：DeepSeek Flash 客户端（D16-b，需 API key）、模板化度量剩余三项（D14）、成本台账（D16）。
 2. `seeds_20` 一旦用于生成即冻结，不得重抽；若必须改，另建 `seeds_20_v2`。
 3. 温度 0.8 是初始值，需试产（G4）确认后冻结。
+
+## 任务 16 — 2026-11-04 采用模板版 Prompt 并解决与负样本规范的冲突
+
+### 做了什么
+1. 通读用户提供的 `prompts/E2_E3_Prompt_模板版.zip`（5 个模板 + 2 个数据文件 + 2 个脚本），确认可以应用。
+2. 把模板集收进 `prompts/templates/`，做两处最小改动适配本项目：
+   - 新增 `prompts/e2_negative.txt`（无实体变体）；
+   - `convert_validate.py` 增加 `--expect {auto,entity,none}`。
+3. 重写 `src/generate/validator.py`，改为**第二阶段的项目级规范检查**，与 `convert_validate.py` 职责分离。
+4. 把 `label_schema.json` 的 4 条标注规则并入 `specs/03` §5.1，`occurrence` 语义写入 §6。
+5. 更新 `specs/04` §6.1、`specs/05` §2（改为每批两次请求）。
+
+### 关键数据
+- **先纠正一个我自己的错误**：上一轮我说压缩包缺 `convert_validate.py`，实际是存在的（1,943 字节）——我当时用 `Select-Object -Last 12` 把成员列表的第一行截掉了。已核实文件完整。
+- **核心冲突**：模板第 9 行要求 "Annotate every target entity, **with at least one per sample**"，与 `specs/05` 的 135 条无实体句（45%）直接冲突；且 `convert_validate.py` 里 `assert x['entities']` 也会拒绝空实体。
+- **解法**：每批拆成两次请求 —— 含实体批 11 条（`e2_generation.txt`，`--expect entity`）、无实体批 9 条（`e2_negative.txt`，`--expect none`），15 批合计 165 + 135 = 300。批号分号段 `e2_001…` / `e2_101…`。
+- **`occurrence` 设计优于我的旧版**：一句话里出现两次 "Petrobras" 时，可精确指向第 1/2 次非重叠出现；我的旧实现是"重复即判无效"，会误杀合法样本。已按新语义改。
+- 端到端验证：正样本批 2/2 通过（`--expect entity`）、无实体批 2/2 通过（`--expect none`）、混批与错用模式均被整批拒绝。项目级检查器 6 个自检用例全过。
+- 模板渲染验证：`prepare_prompt.py` 渲染 pos 7,843 字节 / neg 7,914 字节，**占位符全部替换**，无残留 `{...}`。
+- 种子一致性：压缩包内 `seeds_20.json` 与项目 `data/curated/seeds_20.jsonl` 的 20 条文本 **20/20 完全一致**，无需对齐。
+
+### 变更文件
+- 新建：`prompts/templates/`（10 个文件）、`prompts/templates/prompts/e2_negative.txt`
+- 修改：`prompts/templates/convert_validate.py`（`--expect`）、`prompts/templates/prepare_prompt.py`（stage 增加 `e2_negative`）、`prompts/templates/README.md`（改用本项目流程）
+- 重写：`src/generate/validator.py`（改为第二阶段项目级检查，支持 JSONL 与 `--expect`）
+- 修改：`prompts/e2_plain_v1.md`（标注已被模板集取代）
+- 修改：`docs/specs/03-labeling.md`（新增 §5.1 标注工作规则、§6 occurrence）
+- 修改：`docs/specs/04-generation-constraints.md` §6.1（模板集、两阶段校验、批号号段）
+- 修改：`docs/specs/05-negative-sampling.md` §2（每批两次请求的修订说明）
+- 修改：`docs/TODO.md`（A7 进度更新）
+- 删除：`prompts/_extracted/`（临时解压目录）
+
+### 验证方式
+```powershell
+cd "C:\Users\liush\Desktop\NLP Final Report\Portuguese_ErrorNER\prompts\templates"
+$env:PYTHONIOENCODING="utf-8"
+$py = "C:\Users\liush\Desktop\NLP Ass#1\.venv\Scripts\python.exe"
+& $py prepare_prompt.py e2_negative --batch e2_101 --n 9 --out req.txt      # 应无残留占位符
+& $py convert_validate.py raw.jsonl checked.jsonl --expect none             # 无实体批次
+cd ..\..
+& $py src\generate\validator.py checked.jsonl --expect none                  # 项目级检查
+```
+
+### 遗留问题
+1. 仍缺 DeepSeek Flash 客户端（D16-b，需 API key）、成本台账（D16）、模板化度量剩余三项（D14）。
+2. `prepare_prompt.py` 不校验渲染结果（例如 `{N}` 未替换时不会报错），靠人工核对；已实测本次无残留。
+3. `label_schema.json` 的规则是"依据种子整理的工作规则，尚非官方规范"，与 `pt_bosque` 的 UNER gold 可能存在口径差异，需在人工抽检时留意。

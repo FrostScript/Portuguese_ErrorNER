@@ -59,12 +59,23 @@
 | 项 | 值 |
 |---|---|
 | 生成模型 | **DeepSeek Flash**（固定版本，全程不换；换模型则整批数据作废） |
-| Prompt 版本 | `prompts/e2_plain_v1.md`（v1） |
-| 每批结构 | 20 条 = 9 无实体 + 11 含实体 |
-| 输入示例 | `data/curated/seeds_20.jsonl`（20 条真实种子，**固定**） |
+| 模板集 | `prompts/templates/`（你提供的模板版，5 个模板 + 新增 1 个无实体变体） |
+| 模板机制 | 占位符 `{LABEL_SCHEMA}` `{SEED_EXAMPLES}` `{N}` `{BATCH_ID}`（E3 另有三个），由 `prepare_prompt.py` 运行时注入，不预填 |
+| 输入示例 | `prompts/templates/data/seeds_20.json`（与 `data/curated/seeds_20.jsonl` 同一批 20 条，**已核实 20/20 一致**） |
+| 每批结构 | 20 条 = 11 含实体（`e2_generation`）+ 9 无实体（`e2_negative`），**两次独立请求** |
+| 输出格式 | **JSONL**，一行一条：`{"id","text","entities":[{"text","label","occurrence"}]}` |
 | 温度 | 0.8（试产确认后冻结） |
-| 输出格式 | JSON：`{"sentences":[{"text":..., "entities":[{"text":..., "label":...}]}]}` |
+| 批次 ID | 形如 `e2_001` / `e2_101`（含实体 / 无实体用不同号段），**不得重复** |
 
-**关键设计：模型不输出字符下标。** 只给实体文本与类别，由 `src/generate/validator.py` 在句中定位计算区间；定位失败或多处重复即判无效。LLM 数位置不可靠，让错误暴露在校验环节而不是污染训练数据。
+**关键设计一：模型不输出字符下标。** 只给实体文本 + `occurrence`，由 `convert_validate.py` 定位计算 `[start, end)`。见 `specs/03` §6。
+
+**关键设计二：两阶段校验，职责不重叠。**
+
+| 阶段 | 脚本 | 管什么 |
+|---|---|---|
+| ① 格式与偏移 | `prompts/templates/convert_validate.py` | ID/文本唯一、occurrence 定位、区间不重叠、E3 的 keep/revise/reject；失败则整批不写出 |
+| ② 项目规范 | `src/generate/validator.py` | 句长 20–30、实体数 ≤3、抄种子与 8-gram、跨批重复、无实体句比例统计 |
+
+`convert_validate.py` 新增 `--expect {auto,entity,none}`：含实体批次用 `entity`，无实体批次用 `none`；不指定时沿用原严格规则（必须有实体）。**一次调用只能处理同类批次**，混批会被整批拒绝。
 
 **实体种子来源：** 不另建实体清单。20 条种子自带的 45 个实体（PER 17 / ORG 18 / LOC 10）即 Prompt 的实体示例来源，可追溯至 UNER `pt_bosque` train。
