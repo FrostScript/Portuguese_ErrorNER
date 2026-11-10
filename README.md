@@ -9,9 +9,9 @@
 | 实验 | 状态 | 结果（dev，阈值 0.80） |
 |---|---|---|
 | E0 零样本 | ✅ 完成 | Micro-F1 **0.7497** |
-| E1 真实数据微调（S=500，3 种子） | ✅ 完成 | Micro-F1 **0.8487 ± 0.0045** |
-| E2 普通合成数据微调 | ⏳ 待生成 | — |
-| E3 R-GDA 合成数据微调 | ⏳ 待生成 | — |
+| E1 真实数据微调（3 种子 × {100,200,500}） | ✅ 完成 | S=500 时 Micro-F1 **0.8487 ± 0.0045** |
+| E2 普通合成数据微调（3 种子 × {100,200,500}） | ✅ 数据与训练完成 | S=200 时 **0.8030**；S=500 过拟合至 0.7667 |
+| E3 R-GDA 合成数据微调 | ⚠️ 仅 smoke（20 条） | 待正式生成 300 条 |
 
 ---
 
@@ -34,7 +34,7 @@ Import-Csv results\experiments.csv | Format-Table arm,seed,max_steps,micro_f1,or
     --out D:/pt_ner_work/results/e0_dev --threshold 0.80 --arm E0
 ```
 
-**第一次来先读哪里：** `docs/葡萄牙语NER项目书_E0-E3.md`（研究目标）→ `docs/specs/README.md`（规范索引）→ `docs/TODO.md`（当前进度）。
+**第一次来先读哪里：** `docs/葡萄牙语NER项目书_E0-E3.md`（研究目标）→ `docs/specs/README.md`（规范索引）→ `docs/TODO.md`（当前进度）。要看代码结构则直接读 `docs/ARCHITECTURE.md`。
 
 ---
 
@@ -126,6 +126,7 @@ D:\pt_ner_work\
 
 | 文件 | 作用 |
 |---|---|
+| `ARCHITECTURE.md` | **架构与代码组织说明**：六层划分、模块职责、四条主链路、四种数据契约格式、已知技术债（新增 / 重构前先读） |
 | `葡萄牙语NER项目书_E0-E3.md` | **当前有效的研究方案**（研究问题、E0–E3 定义、实施阶段） |
 | `Portuguese_NER_Project_Proposal_V1.0.md` | 初版项目书（E0–E5 方案，已被取代，留档） |
 | `Portuguese_NER_Experimental_Design_Revision_V1.1.md` | 针对 V1.0 的修订（已标注"被 V2.0 取代"） |
@@ -364,7 +365,7 @@ $env:PYTHONIOENCODING="utf-8"
 ## 九、文档维护约定
 
 - **README 由 AI 维护**：每次结构性改动（新增/删除文件、目录变化、约定变更、结论更新）后自动同步本文件，无需逐次确认。
-- 文档分工：`README.md`（全局导航）→ `docs/specs/`（实现依据）→ `docs/runs/`（单次实验快照）→ `docs/logs/`（任务级变更摘要）→ `docs/TODO.md`（未完成与待决策）。
+- 文档分工：`README.md`（全局导航）→ `docs/ARCHITECTURE.md`（结构与调用关系）→ `docs/specs/`（实现依据）→ `docs/runs/`（单次实验快照）→ `docs/logs/`（任务级变更摘要）→ `docs/TODO.md`（未完成与待决策）。
 
 ---
 

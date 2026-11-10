@@ -31,6 +31,10 @@ logs/
 .env
 .env.*
 .secrets/
+secrets/
 *.key
 *.pem
 credentials*.json
+
+# 本地工具数据（AI 助手记忆、会话缓存，非项目内容）
+.workbuddy/
