@@ -52,8 +52,11 @@
 
 - [x] ~~**A9｜R-GDA 适配对照表**~~ — **已完成（2026-11-05）**：`docs/specs/10-rgda-adaptation.md`。下载论文 PDF 用 pypdf 提取全文，**闸门四项全部确认**：GR 100 分制 5 项（30/15/15/20/20）、AC 100 分制 4 项（30/30/25/15）、最多 **3 轮**、阈值 **90**。
   **⚠ 关键发现（D1 偏差）：** 现有 `e3_refiner` / `e3_calibrator` 模板**没有 0–100 打分，也没有 3 轮循环**，只做 1 轮结构化反馈。**E3 开工前必须在 `run_e3.py` 里补上打分与循环**，否则方法名须降级为 `R-GDA-inspired`，不得写"完整适配"。
+  **D1 已修（2026-11-05）**：GR 侧照论文实现 5 项打分 + 阈值 90 + 3 轮循环。
+  **AC 侧改为去评分化（D8，2026-11-10）**：取消 `score` / `criteria`，判定改为 `keep|revise|reject` + `issues` 驱动，通过的锁定、未通过的进下一轮，最多 3 轮。理由：smoke 实测 AC 平均分 97.6–100、零拒绝，评分无区分度。**代价：不得再报"AC 平均分"，对外表述限定为「R-GDA 适配，AC 判定改为问题驱动」。**
 
-- [x] ~~**E3 中间产物 schema 校验**~~ — **已完成（2026-11-05）**：`src/generate/e3_schema.py`。校验 guidance 五数组、refiner 四数组 + GR 五准则打分一致性、calibrator 逐行 status/score/AC 四准则；含 `should_continue_loop()` 实现 Algorithm 1 的 `score<90 且 round<3`。自测 6 例通过。
+- [x] ~~**E3 中间产物 schema 校验**~~ — **已完成（2026-11-05）**：`src/generate/e3_schema.py`。校验 guidance 五数组、refiner 四数组 + GR 五准则打分一致性；`should_continue_loop()` 实现 Algorithm 1 的 `score<90 且 round<3`（现仅 GR 使用）。
+  **AC 校验改版（2026-11-10）**：删 `AC_CRITERIA`，`check_calibrator()` 不再看 `score` / `criteria`，改为校验三态与 `issues` 是否自洽（keep 必须无 issues、revise 必须有 sample、reject 必须 sample 为 null）。离线自测 26 项断言通过（校验 9 例 + 循环 5 条路径）。
 
 - [x] ~~**A7 的子项（实现层）**~~ — 全部完成：
   D12 模板集（8 stage）/ D13 两阶段校验 / `label_schema` 规则并入 `specs/03` §5.1 / D14 模板化度量 / D16 成本台账 / D16-b DeepSeek 客户端 / D16-c 流水线。
@@ -62,8 +65,8 @@
   **类别平衡已复核（2026-11-05）**：正式 300 条中 PER 124 / ORG 146 / LOC 143，与 E1 的 134/113/129 接近，试产期 ORG 48% 的偏斜未延续。
 
 - [ ] **A10｜E3 生成 300 条（R-GDA）** — 同种子、同标签规范、同 135/165 配比；产出指导、反馈轨迹、终止原因、成本。
-  **开工前置（来自 A9 的 D1 偏差）：** `run_e3.py` 必须实现 **100 分制打分 + 最多 3 轮循环**（阈值 90），否则方法名降级为 `R-GDA-inspired`。
-  **闸门：** 精确 135/165；三类分布与 E1 接近；保留每轮的 score 与 feedback 轨迹。
+  **开工前置：** GR 侧 **100 分制打分 + 最多 3 轮循环**（阈值 90）已就绪；AC 侧已改为**问题驱动、不打分**（D8），最多 3 轮，未通过复检的样本丢弃。
+  **闸门：** 精确 135/165；三类分布与 E1 接近；**GR 保留每轮 score 与 feedback 轨迹，AC 记每轮 keep/revise/reject 计数与丢弃条数**（不再有平均分）。
 
 ### 阶段四：训练与评测
 

@@ -5,15 +5,21 @@
     ② 一次给 165 条打分，评分质量会垮。改为「生成为校准服务」：
         每批生成 → AC 循环（最多 3 轮）→ 收下合格样本 → 不够再产下一批。
 
+**AC 改版（2026-11-10）**：AC 不再打分，判定改成二值 —— 有问题就退回改，没问题就锁定。
+    原因：smoke 实测 AC 平均分 97.6–100、零拒绝，100 分制已无区分度，留着只多烧 token。
+    新循环只送「还没通过的样本」，通过的立即锁定；revise 的修正稿进下一轮复检；
+    3 轮用尽仍未通过复检的一律丢弃。GR 仍按论文保留 100 分制与 90 分阈值。
+
 流程：
     1. Guidance    1 次调用，输出 JSON 五数组
     2. GR loop     ≤3 轮，score < 90 且未满 3 轮则带改写后的指导再评（Algorithm 1）
     3. 生成 + AC   （含实体 11 条/批、无实体 9 条/批）
-                   每批：生成 → AC 循环（≤3 轮，平均分 < 90 继续）→ 双层校验 → 收下
+                   每批：生成 → AC 循环（≤3 轮，问题驱动，不打分）→ 双层校验 → 收下
                    直到凑够 165 / 135
     4. 合并 e3_300.jsonl → 质量度量
 
 依据：docs/specs/10-rgda-adaptation.md（论文 §3.1–§3.3、Figure 8/9、Algorithm 1）
+      AC 去评分化属于本项目对论文的偏离，见该文件「本项目实现偏差」
 
 用法：
     & python src/generate/run_e3.py --dry-run      # 只渲染，不花钱
@@ -182,18 +188,33 @@ def run_gr_loop(client, guidance_text: str, run_tag: str, out_dir: Path,
 
 
 def run_ac_loop(client, samples: list[dict], refined: str, expect: str, batch_id: str,
-                run_tag: str, out_dir: Path, price_in: float, price_out: float) -> tuple[list[dict], float, int]:
-    """阶段 4：对**单批**样本做 AC 校准循环（≤3 轮，平均分 < 90 继续）。
+                run_tag: str, out_dir: Path, price_in: float,
+                price_out: float) -> tuple[list[dict], float, int, dict]:
+    """阶段 4：对**单批**样本做 AC 校准（2026-11-10 改版：去评分，问题驱动）。
 
-    返回 (keep/revise 后的样本, 本批花费, 调用次数)。
+    规则：
+        每轮只把「还没判定通过的样本」送校准器；
+        keep   → 立即锁定，不再参与后续轮次（改好的东西不该被反复动）；
+        revise → 修正稿进入下一轮复检（模型说改好了不能默认改对）；
+        reject → 丢弃，不重试；
+        模型没返回行的样本 → 保留到下一轮再送（没得到判定，不当作有问题）。
+        最多 3 轮。**3 轮结束仍在待检池里的一律丢弃**，包括第 3 轮刚改出来的修正稿：
+        没有第 4 轮复检，不采用未经验证的修改稿。
+
+    返回 (通过的样本, 本批花费, 调用次数, 计数明细)。
     """
     stage = "e3_calibrator" if expect == "entity" else "e3_calibrator_negative"
-    # 进来的是内部格式（start/end），先转成模型格式（occurrence）再送去校准
-    current = [_to_model_format(s) for s in samples]
+    # 待检池：第一轮是原始生成样本（内部 start/end 格式），后续轮是模型给的 occurrence 格式
+    pending = [_to_model_format(s) for s in samples]
+    locked: list[dict] = []
     spent, calls = 0.0, 0
-    kept: list[dict] = []
+    tally = {"keep": 0, "revise": 0, "reject": 0, "dropped": 0, "rounds": 0}
+
     for round_no in range(1, e3_schema.MAX_ROUNDS + 1):
-        batch_text = "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in current)
+        if not pending:
+            break
+        tally["rounds"] = round_no
+        batch_text = "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in pending)
         prompt = prepare_prompt.render(stage, refined=refined, generated=batch_text)
         comp = client.complete(prompt, tag=f"{run_tag}_E3_ac_{expect}_{batch_id}_r{round_no}")
         raw = _save(out_dir / f"{run_tag}_e3_ac_{expect}_{batch_id}_r{round_no}.raw.txt", comp.text)
@@ -209,15 +230,23 @@ def run_ac_loop(client, samples: list[dict], refined: str, expect: str, batch_id
             "reasoning_tokens": comp.reasoning_tokens, "candidates": stats["lines"],
             "accepted": stats["keep"] + stats["revise"], "rejected": stats["reject"],
             "cost_usd": round(cost, 6), "raw_path": str(raw),
-            "notes": f"avg_score={stats['avg_score']}; round={round_no}"
+            "notes": f"round={round_no}; keep={stats['keep']} revise={stats['revise']} "
+                     f"reject={stats['reject']}"
                      + ("; " + "; ".join(issues[:2]) if issues else ""),
         }, LEDGER)
-        print(f"  [AC {batch_id} r{round_no}] 输入 {stats['lines']} 条，平均分 {stats['avg_score']}"
-              f"，keep {stats['keep']} / revise {stats['revise']} / reject {stats['reject']}"
+        print(f"  [AC {batch_id} r{round_no}] 送检 {stats['lines']} 条，"
+              f"通过 {stats['keep']} / 待复查 {stats['revise']} / 丢弃 {stats['reject']}"
               + (f"，格式问题 {len(issues)} 项" if issues else ""), flush=True)
+        if stats["lines"] == 0:
+            # 整批一行有效输出都没有（多为输出被截断）：再打 3 次空枪只会白烧额度
+            print(f"  [AC {batch_id}] 本轮无有效输出，放弃本批", flush=True)
+            break
+        for k in ("keep", "revise", "reject"):
+            tally[k] += stats[k]
 
-        kept = []
-        origin = {s["id"]: s for s in current}
+        origin = {s["id"]: s for s in pending}
+        answered: set[str] = set()
+        nxt: list[dict] = []
         for line in comp.text.splitlines():
             if not line.strip():
                 continue
@@ -225,30 +254,39 @@ def run_ac_loop(client, samples: list[dict], refined: str, expect: str, batch_id
                 obj = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            sid = obj.get("id")
+            if isinstance(sid, str):
+                answered.add(sid)
             st = obj.get("status")
-            if st == "reject":
-                continue
             if st == "keep":
                 # keep 一定用原样本：模型复述时容易丢 id/occurrence，原样本是校验过的
-                src = origin.get(obj.get("id"))
+                src = origin.get(sid)
                 if src:
-                    kept.append(src)
+                    locked.append(src)
+                continue
+            if st == "reject":
                 continue
             if st == "revise":
                 cand = obj.get("sample")
                 if _sample_ok(cand):
-                    kept.append(cand)
+                    nxt.append(cand)
                 else:
-                    # revise 输出缺字段（实测常丢 occurrence）→ 退回原样本，不丢数据
-                    src = origin.get(obj.get("id"))
-                    if src:
-                        kept.append(src)
-                        print(f"     revise 输出不完整（{obj.get('id')}），退回原样本", flush=True)
-        if not e3_schema.should_continue_loop(stats["avg_score"], round_no) or not kept:
-            print(f"  [AC {batch_id}] 终止：平均分 {stats['avg_score']}，共 {round_no} 轮", flush=True)
-            break
-        current = kept
-    return kept, round(spent, 6), calls
+                    # 修正稿缺字段（实测常丢 occurrence）→ 无法复检，只能丢
+                    tally["dropped"] += 1
+                    print(f"     revise 输出不完整（{sid}），丢弃", flush=True)
+                continue
+        # 没返回判定的样本：留到下一轮重试，不算有问题也不算通过
+        missed = [s for sid, s in origin.items() if sid not in answered]
+        if missed:
+            print(f"     模型漏答 {len(missed)} 条，下一轮重送", flush=True)
+            nxt.extend(missed)
+        pending = nxt
+
+    if pending:
+        tally["dropped"] += len(pending)
+        print(f"  [AC {batch_id}] 第 {tally['rounds']} 轮后仍有 {len(pending)} 条未通过复检，丢弃",
+              flush=True)
+    return locked, round(spent, 6), calls, tally
 
 
 def collect_calibrated(client, *, stage: str, expect: str, target: int, per_batch: int,
@@ -258,7 +296,8 @@ def collect_calibrated(client, *, stage: str, expect: str, target: int, per_batc
     """生成 + 校准循环：每批生成后立即校准，凑够 target 条合格样本。"""
     accepted: list[dict] = []
     seen_text: set[str] = set()
-    stats = {"calls": 0, "cost": 0.0, "batches": 0, "rejected_by_ac": 0, "rejected_by_check": 0}
+    stats = {"calls": 0, "cost": 0.0, "batches": 0, "rejected_by_ac": 0, "rejected_by_check": 0,
+             "ac_rounds": 0, "ac_revised": 0, "ac_dropped": 0}
     idx = 0
     while len(accepted) < target and stats["calls"] < max_calls and stats["cost"] < budget_usd:
         idx += 1
@@ -276,11 +315,14 @@ def collect_calibrated(client, *, stage: str, expect: str, target: int, per_batc
             print(f"  [{stage} {batch_id}] 本批无有效样本，跳过", flush=True)
             continue
 
-        kept, ac_cost, ac_calls = run_ac_loop(client, rows, refined, expect, batch_id,
-                                              run_tag, out_dir, price_in, price_out)
+        kept, ac_cost, ac_calls, ac_tally = run_ac_loop(client, rows, refined, expect, batch_id,
+                                                       run_tag, out_dir, price_in, price_out)
         stats["calls"] += ac_calls
         stats["cost"] = round(stats["cost"] + ac_cost, 6)
         stats["rejected_by_ac"] += len(rows) - len(kept)
+        stats["ac_rounds"] = max(stats["ac_rounds"], ac_tally["rounds"])
+        stats["ac_revised"] += ac_tally["revise"]
+        stats["ac_dropped"] += ac_tally["dropped"]
 
         # 校准后的样本再走一遍格式校验，防止 revise 改坏偏移
         if kept:
@@ -380,7 +422,8 @@ def main() -> int:
         max_calls=args.max_calls, budget_usd=args.budget_usd,
         price_in=args.price_in, price_out=args.price_out)
     print(f"  含实体：合格 {pos['accepted']} 条，{pos['batches']} 批，AC 淘汰 {pos['rejected_by_ac']}，"
-          f"校验淘汰 {pos['rejected_by_check']}")
+          f"校验淘汰 {pos['rejected_by_check']}；AC 最多 {pos['ac_rounds']} 轮，"
+          f"改过 {pos['ac_revised']} 次，改不成丢弃 {pos['ac_dropped']} 条")
 
     print("\n[4/4] 生成 + AC 校准（无实体）")
     neg = collect_calibrated(
@@ -389,7 +432,8 @@ def main() -> int:
         max_calls=args.max_calls, budget_usd=args.budget_usd,
         price_in=args.price_in, price_out=args.price_out)
     print(f"  无实体：合格 {neg['accepted']} 条，{neg['batches']} 批，AC 淘汰 {neg['rejected_by_ac']}，"
-          f"校验淘汰 {neg['rejected_by_check']}")
+          f"校验淘汰 {neg['rejected_by_check']}；AC 最多 {neg['ac_rounds']} 轮，"
+          f"改过 {neg['ac_revised']} 次，改不成丢弃 {neg['ac_dropped']} 条")
 
     print(f"\n合计调用 {pos['calls'] + neg['calls'] + 1 + len(gr_trace)} 次，"
           f"生成+校准花费 ${pos['cost'] + neg['cost']:.4f}")

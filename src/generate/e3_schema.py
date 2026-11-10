@@ -28,15 +28,11 @@ GR_CRITERIA = {
     "entity_explanation": 20,
     "correct_relationship": 20,
 }
-# 论文 Figure 9：AC 四准则与权重（合计 100）
-AC_CRITERIA = {
-    "domain_alignment": 30,
-    "semantic_consistency": 30,
-    "entity_role_integrity": 25,
-    "tag_format_validation": 15,
-}
-SCORE_THRESHOLD = 90   # Algorithm 1：score < 90 且 round < 3 才继续 refine
-MAX_ROUNDS = 3
+# 论文 Figure 9 的 AC 四准则（30/30/25/15）**已废弃（2026-11-10）**：
+# AC 改为不打分，四项维度降级为模板里的检查清单，代码侧只看 keep/revise/reject。
+# 理由见 docs/specs/10-rgda-adaptation.md「本项目实现偏差」。
+SCORE_THRESHOLD = 90   # 仅 GR 使用：score < 90 且 round < 3 才继续 refine
+MAX_ROUNDS = 3         # GR 与 AC 共用：最多 3 轮
 
 # guidance 步骤的五个数组（本项目 e3_guidance.txt）
 GUIDANCE_KEYS = ["observations", "generation_guidance", "coverage_plan", "annotation_risks", "avoid_until_clarified"]
@@ -99,10 +95,17 @@ def check_refiner(text: str) -> list[str]:
     return issues
 
 
-def check_calibrator(text: str, round_no: int = 1) -> tuple[list[str], dict]:
-    """校验 AC 输出（逐行 JSON）。返回 (问题列表, 统计)。"""
-    issues, stats = [], {"lines": 0, "keep": 0, "revise": 0, "reject": 0,
-                         "avg_score": 0.0, "scores": []}
+def check_calibrator(text: str) -> tuple[list[str], dict]:
+    """校验 AC 输出（逐行 JSON）。**2026-11-10 改版：不再校验 score / criteria。**
+
+    判定只看「这一行有没有问题」：
+        keep   —— 没问题，issues 必须是空数组，sample 为 null
+        revise —— 有问题且已改，issues 非空，sample 是修正稿
+        reject —— 有问题但改不了，issues 非空，sample 为 null
+
+    返回 (问题列表, 统计)。统计只含行数与三态计数，不再有平均分。
+    """
+    issues, stats = [], {"lines": 0, "keep": 0, "revise": 0, "reject": 0}
     for i, line in enumerate(text.splitlines(), 1):
         if not line.strip():
             continue
@@ -112,23 +115,36 @@ def check_calibrator(text: str, round_no: int = 1) -> tuple[list[str], dict]:
         except json.JSONDecodeError as exc:
             issues.append(f"calibrator 第{i}行不是 JSON: {exc}")
             continue
+        if not isinstance(obj.get("id"), str):
+            issues.append(f"calibrator 第{i}行缺少字符串 id")
         st = obj.get("status")
         if st not in ("keep", "revise", "reject"):
             issues.append(f"calibrator 第{i}行 status 非法: {st!r}")
-        else:
-            stats[st] += 1
-        if isinstance(obj.get("score"), (int, float)):
-            stats["scores"].append(float(obj["score"]))
-        issues += _check_score(obj, AC_CRITERIA, f"calibrator 第{i}行", feedback_key="issues")
-        if st in ("keep", "revise") and not isinstance(obj.get("sample"), dict):
-            issues.append(f"calibrator 第{i}行 status={st} 但缺 sample")
-    if stats["scores"]:
-        stats["avg_score"] = round(sum(stats["scores"]) / len(stats["scores"]), 2)
+            continue
+        stats[st] += 1
+        found = obj.get("issues")
+        if not isinstance(found, list):
+            issues.append(f"calibrator 第{i}行 issues 不是数组")
+            continue
+        found = [x for x in found if isinstance(x, str) and x.strip()]
+        # 三态与 issues 必须自洽，否则「有没有问题」这个唯一信号就失效了
+        if st == "keep" and found:
+            issues.append(f"calibrator 第{i}行 status=keep 但 issues 有 {len(found)} 条")
+        if st in ("revise", "reject") and not found:
+            issues.append(f"calibrator 第{i}行 status={st} 但 issues 为空，说不清问题在哪")
+        if st == "revise" and not isinstance(obj.get("sample"), dict):
+            issues.append(f"calibrator 第{i}行 status=revise 但缺 sample")
+        if st == "reject" and obj.get("sample") is not None:
+            issues.append(f"calibrator 第{i}行 status=reject 但 sample 不是 null")
     return issues, stats
 
 
 def should_continue_loop(avg_score: float, round_no: int) -> bool:
-    """Algorithm 1：score < 90 且 round < 3 时继续 refine。"""
+    """Algorithm 1：score < 90 且 round < 3 时继续 refine。
+
+    **仅用于 GR（refiner）**：AC 自 2026-11-10 起不打分，终止条件改为「本轮无问题样本」，
+    由 run_e3.run_ac_loop 自己判断，不再走这里。
+    """
     return avg_score < SCORE_THRESHOLD and round_no < MAX_ROUNDS
 
 
