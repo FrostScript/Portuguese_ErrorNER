@@ -209,13 +209,13 @@ data/
 | 2 | `src/data/make_real_300_en.py` | 抽 300 条（165+135，种子 42，类别分层） | `make_real_300.py` | ✅ 已建 |
 | 3 | `src/eval/evaluate_en.py` | 英文评测入口：加载葡语评测模块，只替换数据路径 | `src/eval/evaluate.py` | ✅ 已建（原清单遗漏，实测中补） |
 | 4 | `src/train/sweep_steps_en.py` | 9 组网格，choices 含 `E0en–E3en`，评测调 `evaluate_en.py` | `src/train/sweep_steps.py` | ✅ 已建 |
-| 5 | `src/data/make_seeds_en.py` | 选 20 条种子（同约束、同随机种子） | `make_seeds.py` | 待建（E2en 前置） |
-| 6 | `src/generate/en/en_prepare_prompt.py` | 渲染英文模板 | `prompts/templates/prepare_prompt.py` | 待建 |
-| 7 | `src/generate/en/en_pipeline.py` | 生成流水线 | `src/generate/pipeline.py` | 待建 |
-| 8 | `src/generate/en/en_run_e2.py` | E2en 入口 | `src/generate/run_e2.py` | 待建 |
+| 5 | `src/data/make_seeds_en.py` | 选 20 条种子（同约束、同随机种子） | `make_seeds.py` | ✅ 已建 |
+| 6 | `src/generate/en/en_prepare_prompt.py` | 渲染英文模板 | `prompts/templates/prepare_prompt.py` | ✅ 已建 |
+| 7 | `src/generate/en/en_pipeline.py` | 生成流水线 | `src/generate/pipeline.py` | ✅ 已建 |
+| 8 | `src/generate/en/en_run_e2.py` | E2en 入口 | `src/generate/run_e2.py` | ✅ 已建（smoke 通过） |
 | 9 | `src/generate/en/en_run_e3.py` | E3en 入口 | `src/generate/run_e3.py` | 待建 |
-| 10 | `prompts/templates_en/prompts/*.txt` | 8 个模板英文版 | `prompts/templates/prompts/*.txt` | 待建 |
-| 11 | `prompts/templates_en/data/{label_schema_en.json, seeds_20_en.json}` | 英文标签规范与种子 | `prompts/templates/data/*` | 待建 |
+| 10 | `prompts/templates_en/prompts/*.txt` | 8 个模板英文版 | `prompts/templates/prompts/*.txt` | 2/8 已建（E2 两个），E3 六个待建 |
+| 11 | `prompts/templates_en/data/{label_schema_en.json, seeds_20_en.json}` | 英文标签规范与种子 | `prompts/templates/data/*` | ✅ 已建 |
 | 12 | `docs/specs/11-english-parallel.md` | 本文件 | — | ✅ |
 
 **只剩三个文件必须复制**，理由都是硬编码：
