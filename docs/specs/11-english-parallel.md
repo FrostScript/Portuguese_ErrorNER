@@ -213,9 +213,11 @@ data/
 | 6 | `src/generate/en/en_prepare_prompt.py` | 渲染英文模板 | `prompts/templates/prepare_prompt.py` | ✅ 已建 |
 | 7 | `src/generate/en/en_pipeline.py` | 生成流水线 | `src/generate/pipeline.py` | ✅ 已建 |
 | 8 | `src/generate/en/en_run_e2.py` | E2en 入口 | `src/generate/run_e2.py` | ✅ 已建（smoke 通过） |
-| 9 | `src/generate/en/en_run_e3.py` | E3en 入口 | `src/generate/run_e3.py` | 待建 |
-| 10 | `prompts/templates_en/prompts/*.txt` | 8 个模板英文版 | `prompts/templates/prompts/*.txt` | 2/8 已建（E2 两个），E3 六个待建 |
+| 9 | `src/generate/en/en_run_e3.py` | E3en 入口（由 `make_en_run_e3.py` 派生） | `src/generate/run_e3.py` | ✅ 已建（dry-run 6 个 stage 全通过） |
+| 10 | `prompts/templates_en/prompts/*.txt` | 8 个模板英文版（由 `make_en_templates.py` 派生） | `prompts/templates/prompts/*.txt` | ✅ 8/8，归一化差异 **0** |
 | 11 | `prompts/templates_en/data/{label_schema_en.json, seeds_20_en.json}` | 英文标签规范与种子 | `prompts/templates/data/*` | ✅ 已建 |
+| 12 | `src/generate/en/make_en_templates.py` | 由葡语模板派生英文模板并校验 | — | ✅ 已建 |
+| 13 | `src/generate/en/make_en_run_e3.py` | 由 `run_e3.py` 派生 `en_run_e3.py` 并校验 | — | ✅ 已建 |
 | 12 | `docs/specs/11-english-parallel.md` | 本文件 | — | ✅ |
 
 **只剩三个文件必须复制**，理由都是硬编码：
@@ -372,8 +374,10 @@ data/
 
 ### 13.6 待办
 
-- E2en / E3en 依赖：`make_seeds_en.py`、8 个英文模板、`en_prepare_prompt.py`、`en_pipeline.py`、`en_run_e2.py`、`en_run_e3.py`。
-- P-EN4 的英文窗口消融（10–24 词版 E2en）排入 E2en 之后。
+- ~~E2en / E3en 依赖的 6 个文件~~ —— **已全部建成**（2026-11-13）：`make_seeds_en.py`、8 个英文模板、`en_prepare_prompt.py`、`en_pipeline.py`、`en_run_e2.py`、`en_run_e3.py`。
+- **E2en 生成已完成但闸门未过**：实体总量 +45.3%（目标 ±5%），根因是"模板与葡语一致"＋"EWT 的 ORG 稀疏"叠加，详见 `docs/runs/2026-11-13_E2en_generation.md`。
+- E3en 尚未冒烟：`en_run_e3.py --dry-run` 已通过（6 个 stage 渲染无残留），但未做 `--smoke`。
+- P-EN4 的英文窗口消融（10–24 词版 E2en）仍待安排。
 
 ---
 
