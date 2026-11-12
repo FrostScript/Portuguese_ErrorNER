@@ -298,7 +298,7 @@ def collect_calibrated(client, *, stage: str, expect: str, target: int, per_batc
         need = min(per_batch, target - len(accepted))
         r = pipeline.generate_one_batch(
             client, stage=stage, batch_id=batch_id, n=per_batch, expect=expect,
-            out_dir=out_dir, arm="E3", ledger_path=LEDGER, price_in=price_in,
+            out_dir=out_dir, arm="E3en", ledger_path=LEDGER, price_in=price_in,
             price_out=price_out, extra={"refined": refined}, run_tag=run_tag)
         stats["calls"] += 1
         stats["cost"] = round(stats["cost"] + r.get("cost_usd", 0.0), 6)

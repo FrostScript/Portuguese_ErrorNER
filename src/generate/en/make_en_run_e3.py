@@ -71,8 +71,9 @@ REPLACEMENTS = [
         'FINAL_DIR = WORKSPACE / "data" / "synthetic" / "e3"',
         'FINAL_DIR = WORKSPACE / "data" / "en" / "synthetic"',
     ),
-    # 6. arm 与文件 tag
+    # 6. arm 与文件 tag（注意 generate_one_batch 用的是关键字参数 arm=）
     ('"arm": "E3"', '"arm": "E3en"'),
+    ('arm="E3",', 'arm="E3en",'),
     ('f"{run_tag}_E3_', 'f"{run_tag}_E3en_'),
     # 7. 产物文件名 / doc_id / 度量报告
     ('"e3_pos.jsonl"', '"e3_pos_en.jsonl"'),
