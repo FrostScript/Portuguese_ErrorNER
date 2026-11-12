@@ -4,14 +4,22 @@
 
 > **维护约定：** 本文件随每次结构性改动自动同步（新增/删除文件、目录变化、约定变更、结论更新），不需逐次确认。文档分工见第九节。
 
-**当前状态（2026-11-04）**
+**当前状态（2026-11-13）**
 
 | 实验 | 状态 | 结果（dev，阈值 0.80） |
 |---|---|---|
 | E0 零样本 | ✅ 完成 | Micro-F1 **0.7497** |
 | E1 真实数据微调（3 种子 × {100,200,500}） | ✅ 完成 | S=500 时 Micro-F1 **0.8487 ± 0.0045** |
-| E2 普通合成数据微调（3 种子 × {100,200,500}） | ✅ 数据与训练完成 | S=200 时 **0.8030**；S=500 过拟合至 0.7667 |
-| E3 R-GDA 合成数据微调 | ⚠️ 仅 smoke（20 条） | 待正式生成 300 条 |
+| E2 普通合成数据微调（3 种子 × {100,200,500}） | ✅ 完成 | S=200 时 **0.8030**；S=500 过拟合至 0.7667 |
+| E3 R-GDA 合成数据微调（3 种子 × {100,200,500}） | ✅ 数据与训练完成 | S=100 时 **0.8006 ± 0.0053**；三档极差仅 1.9 点 |
+
+**英文对照实验（`docs/specs/11-english-parallel.md`，2026-11-13 起）**
+
+| 实验 | 状态 | 结果（dev，阈值 0.80） |
+|---|---|---|
+| E0en 零样本（UNER English-EWT） | ✅ 完成 | Micro-F1 **0.5895**（P 0.5029 / R 0.7122） |
+| E1en 真实数据微调（3 种子 × {100,200,500}） | ✅ 完成 | S=500 时 **0.7056 ± 0.0107**；200→500 仅 +1.4 点，接近饱和 |
+| E2en / E3en | ⬜ 未开工 | 依赖 6 个待建文件（见 spec §7） |
 
 ---
 
@@ -247,6 +255,23 @@ D:\pt_ner_work\
 | `.idea/` | IDE 配置 | — |
 
 `.gitignore` 还兜底忽略 `tmp*/`、`torchinductor_*/`、`checkpoints/`。
+
+### 3.10 英文对照实验（独立命名空间）
+
+规范见 `docs/specs/11-english-parallel.md`。**原则：不修改任何葡语侧代码**，需要不同行为时复制到 `en/` 命名空间。
+
+| 路径 | 作用 |
+|---|---|
+| `src/data/prepare_uner_en.py` | 下载并转换 `UNER_English-EWT` → `data/en/uner_en/`，含泄漏审计 |
+| `src/data/make_real_300_en.py` | 抽 E1en 训练集（同口径：种子 42、135/165、45% 无实体、去重） |
+| `src/eval/evaluate_en.py` | 英文评测入口：加载 `evaluate.py` 模块，**只替换数据路径**，指标/阈值/CI 共用同一实现 |
+| `src/train/sweep_steps_en.py` | 英文 9 组网格；评测调 `evaluate_en.py` |
+| `data/en/uner_en/` | 英文三集 JSONL + `stats.json` |
+| `data/en/curated/` | `real_300_en.jsonl` + manifest + stats |
+| 原始 iob2 | `D:\pt_ner_work\raw_uner_en\`（仓库外，可重下） |
+| 文档 | `docs/specs/11-english-parallel.md`、`docs/runs/2026-11-13_E0en_zeroshot_dev.md`、`docs/runs/2026-11-13_E1en_grid_dev.md` |
+
+**零改动的复用：** `validator.py`、`pt_tokenize.py`、`convert_validate.py`、`e3_schema.py`、`client.py`、`ledger.py`、`metrics.py`、`train_arm.py`、`evaluate.py`（后两个经 CLI/import 调用）。
 
 ---
 

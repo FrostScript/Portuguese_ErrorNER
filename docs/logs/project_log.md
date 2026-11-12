@@ -1027,3 +1027,56 @@ Import-Csv D:\pt_ner_work\results\gen.csv | Format-Table stage,prompt_tokens,com
 1. GR 应取最高分那一轮（当前取最后一轮）——建议改。
 2. AC 过滤力弱：是否调严（阈值降到 85 / 强制列问题）或作为记录性检查并在报告说明。
 3. 数据仍只有 20 条 smoke，正式 300 条未跑。
+
+---
+
+## 任务 29 — 2026-11-13 英文对照实验启动（E0en + E1en）
+
+### 做了什么
+
+1. **选定英文数据集**：核实 UniversalNER 组织 34 个仓，英文只有 `UNER_English-EWT` 与 `UNER_English-PUD`；PUD 规模不足，选定 **EWT**（CC-BY-SA-4.0，标签集恰好为 PER/ORG/LOC，**无需标签映射**）。
+2. **建数据管线**：`prepare_uner_en.py`（下载 + IOB2→JSONL + 泄漏审计）、`make_real_300_en.py`（种子 42、135/165、同去重口径）。
+3. **建评测入口**：`evaluate_en.py` 以"加载 `evaluate.py` 模块 + 替换 `collect_candidates`"的方式接入英文数据，指标/阈值/CI/台账全部共用同一实现。
+4. **建网格脚本**：`sweep_steps_en.py`（choices 含英文 arm，评测调 `evaluate_en.py`）。
+5. **跑 E0en 闸门 + E1en 九组网格**。
+6. **文档**：新建 `docs/specs/11-english-parallel.md`、`docs/runs/2026-11-13_E0en_zeroshot_dev.md`、`docs/runs/2026-11-13_E1en_grid_dev.md`；README 增补英文小节与状态表。
+
+### 关键数据
+
+| 配置 | Micro-F1（dev，0.80） | P | R |
+|---|---:|---:|---:|
+| E0 葡语 | 0.7497 | 0.7680 | 0.7323 |
+| **E0en 英文** | **0.5895** | 0.5029 | 0.7122 |
+| E1 葡语 @500 | 0.8487 | 0.8093 | 0.8922 |
+| **E1en 英文 @500** | **0.7056** | 0.6170 | 0.8247 |
+
+- 数据：EWT train 12,543 句 / 7,022 实体；dev 2,001 句 / 966 实体。E1en 抽 300 句（165+135）/ 287 实体（PER 112 / ORG 62 / LOC 113）。
+- **真实数据带来的提升跨语言稳定**：葡语 +9.9 点、英文 +11.6 点。
+- **绝对水平差 14 点，差距主要在精度**（0.809 vs 0.617）；召回只差 7 点。
+- **收敛形态不同**：葡语 200→500 仍 +5.3 点；英文只 +1.4 点，接近饱和。
+
+### 变更文件
+
+- 新建代码：`src/data/prepare_uner_en.py`、`src/data/make_real_300_en.py`、`src/eval/evaluate_en.py`、`src/train/sweep_steps_en.py`
+- 新建数据：`data/en/uner_en/{train,dev,test}.jsonl`、`stats.json`；`data/en/curated/real_300_en.*`
+- 新建文档：`docs/specs/11-english-parallel.md`、两份 `docs/runs/2026-11-13_*.md`
+- 修改文档：`README.md`（状态表 + §3.10 英文小节）、`results/experiments.csv`（追加 E0en 1 行 + E1en 9 行）
+- **未改动任何葡语侧代码**（隔离原则）
+
+### 验证方式
+
+```powershell
+& $py src\data\prepare_uner_en.py            # 泄漏审计：train&test 46 / train&dev 35 / dev&test 27 条重复句，均为寒暄短句
+& $py src\eval\evaluate_en.py --model models/gliner_multi-v2.1 --split dev `
+    --cache D:/pt_ner_work/results/e0en_dev_candidates.jsonl `
+    --out D:/pt_ner_work/results/e0en_dev --threshold 0.80 --arm E0en --record results/experiments.csv
+& $py src\train\sweep_steps_en.py --arm E1en --data data/en/curated/real_300_en.jsonl
+```
+
+### 遗留问题/待决策
+
+1. **P-EN3 语体混杂**：EWT 是网络文本、`pt_bosque` 是新闻，语言与语体同时变化，本组数据**不能**把差异归因于语言。
+2. **P-EN4 长度错位**：E1en 含实体句均长 18.0（葡语 29.1），「20–32 词」窗口对英文而言位于均值上方。主实验保持同阈值，另安排 10–24 词消融。
+3. **E1en 的 ORG 训练信号偏少**（62 mention vs 葡语 113），ORG 低分不能全归因于语言。
+4. E2en / E3en 仍缺 6 个文件：`make_seeds_en.py`、8 个英文模板、`en_prepare_prompt.py`、`en_pipeline.py`、`en_run_e2.py`、`en_run_e3.py`。
+5. 葡语 E3 的 README 状态此前滞后，已在本次同步（E3 = 0.8006 @S=100）；`docs/TODO.md` 的 A10/A11 尚未勾选。
