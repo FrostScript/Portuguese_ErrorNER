@@ -1,0 +1,14 @@
+{
+  "labels": {
+    "PER": "Personal names of people",
+    "ORG": "Organizations, including companies, political parties, bands, sports teams, newspapers and public institutions",
+    "LOC": "Countries, cities, regions, streets and specific places"
+  },
+  "rules": [
+    "Annotate every target entity completely; ordinary occupations, generic references, times and quantities are not annotated on their own",
+    "Annotate contiguously and without overlap; a complete institution or place is not split into nested parts",
+    "Keep characters that are internal to the entity and exclude surrounding punctuation",
+    "Work titles carry no label of their own; avoid ambiguous cases that are not yet settled"
+  ],
+  "status": "Working rules derived from the current seed set, not yet a verified official corpus guideline"
+}

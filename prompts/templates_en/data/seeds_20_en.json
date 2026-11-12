@@ -1,0 +1,242 @@
+[
+ {
+  "text": "Shona has commissioned Mike Moscoso to work on this, and I believe that Mike has already been working with James New.",
+  "entities": [
+   {
+    "text": "Shona",
+    "label": "PER"
+   },
+   {
+    "text": "Mike Moscoso",
+    "label": "PER"
+   },
+   {
+    "text": "Mike",
+    "label": "PER"
+   },
+   {
+    "text": "James New",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "\"I do n't know how these events could have taken place without some concerted effort,\" said Dunn.",
+  "entities": [
+   {
+    "text": "Dunn",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "I am following up regarding the status of our comments to the form of guaranty for Pemex that you provided to Lucy Ortiz.",
+  "entities": [
+   {
+    "text": "Lucy Ortiz",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "Michael Shames Executive Director Utility Consumers ' Action Network 1717 Kettner Blvd. Suite 105 San Diego, CA 92101 619-696-6966 mshames@ucan.org",
+  "entities": [
+   {
+    "text": "Michael Shames",
+    "label": "PER"
+   },
+   {
+    "text": "Utility Consumers ' Action Network",
+    "label": "ORG"
+   },
+   {
+    "text": "San Diego",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "I am indeed checking on flights to Seoul and do n't think I 'm going to go at exactly the same time as my parents.",
+  "entities": [
+   {
+    "text": "Seoul",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "I will email names and email addresses (or postal addresses) of signers to NCRC4ME in time for their “lobby day” in Raleigh on March 15.",
+  "entities": [
+   {
+    "text": "NCRC4ME",
+    "label": "ORG"
+   },
+   {
+    "text": "Raleigh",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "2,500- Number of public-diplomacy officers employed by the State Department to further the image of the US abroad in 1991.",
+  "entities": [
+   {
+    "text": "State Department",
+    "label": "ORG"
+   },
+   {
+    "text": "US",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "Iran 's coast facing the Persian Gulf is a looming wall of mountains that look down upon any naval forces arrayed in those waters.",
+  "entities": [
+   {
+    "text": "Iran",
+    "label": "LOC"
+   },
+   {
+    "text": "Persian Gulf",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "This is one of the worst places I have stayed, we cut out stay short and went to the Mulberry.",
+  "entities": [
+   {
+    "text": "the Mulberry",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "The guy who was cutting me the deals and getting me the furniture quickly, Ahmed, was nice and mostly professional, except the semi-sketchiness.",
+  "entities": [
+   {
+    "text": "Ahmed",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "We were in Santa Fe for a special event and our hosts rented out the El Paradero for all their guests to stay at.",
+  "entities": [
+   {
+    "text": "Santa Fe",
+    "label": "LOC"
+   },
+   {
+    "text": "El Paradero",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "It is not really possible to score this school too highly, We would give it 12 out of 10 and 5 Stars across the board Steve & Anne",
+  "entities": [
+   {
+    "text": "Steve",
+    "label": "PER"
+   },
+   {
+    "text": "Anne",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "This is a nice place, and I know we will return to meet my sister-in-law from Chicago!!",
+  "entities": [
+   {
+    "text": "Chicago",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "Stephanie 's knowledge of the market and properties in our price range, made us feel secure in our decision to buy when we did.",
+  "entities": [
+   {
+    "text": "Stephanie",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "We are absolutely confident that Stuart 's ethical and focused strategies will see these trends continue to grow, and our business will reap the rewards of this program.",
+  "entities": [
+   {
+    "text": "Stuart",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "If you can not park in the lot, then you can park in the shopping center 's garage, and walk up to Endo Sushi.",
+  "entities": [
+   {
+    "text": "Endo Sushi",
+    "label": "ORG"
+   }
+  ]
+ },
+ {
+  "text": "Tamils feel that the proposed defense agreement between India and Sri Lanka would encourage Sinhala rulers to prepare for another war abandoning the current peace process",
+  "entities": [
+   {
+    "text": "India",
+    "label": "LOC"
+   },
+   {
+    "text": "Sri Lanka",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "In any case, Kalkat puts it succinctly: \"There can not be a military option to what is a political situation.\"",
+  "entities": [
+   {
+    "text": "Kalkat",
+    "label": "PER"
+   }
+  ]
+ },
+ {
+  "text": "The present evidence relating to Atta 's alleged travel to Prague does not warrant a conclusion that Al Qaeda obtained the Ames strain from Iraq.",
+  "entities": [
+   {
+    "text": "Atta",
+    "label": "PER"
+   },
+   {
+    "text": "Prague",
+    "label": "LOC"
+   },
+   {
+    "text": "Al Qaeda",
+    "label": "ORG"
+   },
+   {
+    "text": "Iraq",
+    "label": "LOC"
+   }
+  ]
+ },
+ {
+  "text": "2) Target Israel and encourage the worst elements of the Palestinians by playing on the iron fist policies of the Sharon government.",
+  "entities": [
+   {
+    "text": "Israel",
+    "label": "LOC"
+   },
+   {
+    "text": "Sharon",
+    "label": "PER"
+   }
+  ]
+ }
+]

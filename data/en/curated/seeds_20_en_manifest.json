@@ -1,0 +1,73 @@
+{
+  "created_by": "src/data/make_seeds_en.py",
+  "source": "C:\\Users\\liush\\Desktop\\NLP Final Report\\Portuguese_ErrorNER\\data\\en\\curated\\real_300_en.jsonl",
+  "source_sha256": "f87bd16aa29f8ec5194e221b0d3fba8e05c3be1bbd96e2f7e67807ad2472907d",
+  "output": "C:\\Users\\liush\\Desktop\\NLP Final Report\\Portuguese_ErrorNER\\data\\en\\curated\\seeds_20_en.jsonl",
+  "output_sha256": "dbfb384ffe5a2024bbedbf93a75be01d46b81e53b8207b84afa9b4f72403941f",
+  "seed": 42,
+  "constraints": {
+    "n_seeds": 20,
+    "token_range": [
+      20,
+      30
+    ],
+    "min_per_class": 3,
+    "max_per_document": 2,
+    "must_have_entities": true
+  },
+  "counts": {
+    "seeds": 20,
+    "entities": 35,
+    "per_class": {
+      "PER": 15,
+      "ORG": 5,
+      "LOC": 15
+    },
+    "documents": 19,
+    "tokens": 504,
+    "entities_per_seed": 1.75
+  },
+  "ids": [
+    "email-enronsent01_02-0037",
+    "email-enronsent07_01-0029",
+    "email-enronsent13_01-0077",
+    "email-enronsent33_01-0172",
+    "email-enronsent34_01-0007",
+    "newsgroup-groups.google.com_GayMarriage_0ccbb50b41a5830b_ENG_20050321_181500-0015",
+    "newsgroup-groups.google.com_alt.animals_0084bdc731bfc8d8_ENG_20040905_212000-0182",
+    "newsgroup-groups.google.com_misc.consumers_a534e32067078b08_ENG_20060116_030800-0038",
+    "reviews-023620-0001",
+    "reviews-036133-0008",
+    "reviews-042416-0003",
+    "reviews-047184-0006",
+    "reviews-076352-0005",
+    "reviews-095040-0004",
+    "reviews-278775-0009",
+    "reviews-314974-0004",
+    "weblog-blogspot.com_dakbangla_20041119231111_ENG_20041119_231111-0001",
+    "weblog-blogspot.com_dakbangla_20041119231111_ENG_20041119_231111-0040",
+    "weblog-blogspot.com_dakbangla_20050311135387_ENG_20050311_135387-0140",
+    "weblog-juancole.com_juancole_20030911085700_ENG_20030911_085700-0019"
+  ],
+  "doc_ids": [
+    "train:email-enronsent01_02",
+    "train:email-enronsent07_01",
+    "train:email-enronsent13_01",
+    "train:email-enronsent33_01",
+    "train:email-enronsent34_01",
+    "train:newsgroup-groups.google.com_GayMarriage_0ccbb50b41a5830b_ENG_20050321_181500",
+    "train:newsgroup-groups.google.com_alt.animals_0084bdc731bfc8d8_ENG_20040905_212000",
+    "train:newsgroup-groups.google.com_misc.consumers_a534e32067078b08_ENG_20060116_030800",
+    "train:reviews-023620",
+    "train:reviews-036133",
+    "train:reviews-042416",
+    "train:reviews-047184",
+    "train:reviews-076352",
+    "train:reviews-095040",
+    "train:reviews-278775",
+    "train:reviews-314974",
+    "train:weblog-blogspot.com_dakbangla_20041119231111_ENG_20041119_231111",
+    "train:weblog-blogspot.com_dakbangla_20050311135387_ENG_20050311_135387",
+    "train:weblog-juancole.com_juancole_20030911085700_ENG_20030911_085700"
+  ]
+}
