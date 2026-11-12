@@ -1,0 +1,82 @@
+{
+  "source": "UniversalNER/UNER_English-EWT@master",
+  "splits": {
+    "train": {
+      "documents": 540,
+      "sentences": 12543,
+      "entities": 7022,
+      "tokens": 204579,
+      "entities_per_sentence": 0.5598,
+      "tokens_per_sentence": 16.31,
+      "no_entity_sentences": 8280,
+      "no_entity_rate": 0.6601,
+      "per_class": {
+        "LOC": 2712,
+        "PER": 2874,
+        "ORG": 1436
+      },
+      "duplicate_texts": 809,
+      "offset_fallbacks": 0
+    },
+    "dev": {
+      "documents": 318,
+      "sentences": 2001,
+      "entities": 966,
+      "tokens": 25149,
+      "entities_per_sentence": 0.4828,
+      "tokens_per_sentence": 12.57,
+      "no_entity_sentences": 1377,
+      "no_entity_rate": 0.6882,
+      "per_class": {
+        "LOC": 399,
+        "ORG": 224,
+        "PER": 343
+      },
+      "duplicate_texts": 88,
+      "offset_fallbacks": 0
+    },
+    "test": {
+      "documents": 316,
+      "sentences": 2077,
+      "entities": 1088,
+      "tokens": 25097,
+      "entities_per_sentence": 0.5238,
+      "tokens_per_sentence": 12.08,
+      "no_entity_sentences": 1368,
+      "no_entity_rate": 0.6586,
+      "per_class": {
+        "LOC": 317,
+        "PER": 449,
+        "ORG": 322
+      },
+      "duplicate_texts": 106,
+      "offset_fallbacks": 0
+    }
+  },
+  "exact_text_overlap": {
+    "train&test": {
+      "exact_duplicate_sentences": 46,
+      "sample": [
+        "Thanks.",
+        "FYI.",
+        "Thank you"
+      ]
+    },
+    "train&dev": {
+      "exact_duplicate_sentences": 35,
+      "sample": [
+        "Chris,",
+        "Thanks.",
+        "I do n't know."
+      ]
+    },
+    "dev&test": {
+      "exact_duplicate_sentences": 27,
+      "sample": [
+        "Thanks.",
+        "Selah!",
+        "\"...there is no companion quite so devoted, so communicative, so loving and so mesmerizing as a rat.\""
+      ]
+    }
+  }
+}
